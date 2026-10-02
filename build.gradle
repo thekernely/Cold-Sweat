@@ -24,9 +24,9 @@ loom {
 sourceSets {
     main {
         java {
-            // M1 bootstrap only.
-            // Existing Cold Sweat sources will be re-enabled incrementally.
+            // Incremental Fabric port.
             include 'com/momosoftworks/coldsweat/fabric/**'
+            include 'com/momosoftworks/coldsweat/core/init/ModSounds.java'
         }
 
         resources {
