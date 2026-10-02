@@ -4,6 +4,7 @@ import com.momosoftworks.coldsweat.common.blockentity.BoilerBlockEntity;
 import com.momosoftworks.coldsweat.common.blockentity.HearthBlockEntity;
 import com.momosoftworks.coldsweat.common.blockentity.IceboxBlockEntity;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidStorage;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -39,16 +40,45 @@ public final class ModBlockEntities
             )
     );
 
-    private static <T extends BlockEntityType<?>> T register(String path, T type)
+    private static boolean transferApiRegistered;
+
+    private static <T extends BlockEntityType<?>> T register(
+            String path,
+            T type
+    )
     {
         Identifier id = ColdSweatFabric.id(path);
-        ResourceKey<BlockEntityType<?>> key = ResourceKey.create(Registries.BLOCK_ENTITY_TYPE, id);
-        return Registry.register(BuiltInRegistries.BLOCK_ENTITY_TYPE, key, type);
+        ResourceKey<BlockEntityType<?>> key =
+                ResourceKey.create(Registries.BLOCK_ENTITY_TYPE, id);
+        return Registry.register(
+                BuiltInRegistries.BLOCK_ENTITY_TYPE,
+                key,
+                type
+        );
     }
 
     public static void initialize()
     {
-        ColdSweatFabric.LOGGER.info("Registering Cold Sweat thermal block entities.");
+        if (!transferApiRegistered)
+        {
+            FluidStorage.SIDED.registerForBlockEntity(
+                    (blockEntity, direction) ->
+                            blockEntity.getHotFluidStorage(),
+                    HEARTH
+            );
+
+            FluidStorage.SIDED.registerForBlockEntity(
+                    (blockEntity, direction) ->
+                            blockEntity.getHotFluidStorage(),
+                    BOILER
+            );
+
+            transferApiRegistered = true;
+        }
+
+        ColdSweatFabric.LOGGER.info(
+                "Registering Cold Sweat thermal block entities and hot-fluid transfer exposure."
+        );
     }
 
     private ModBlockEntities()

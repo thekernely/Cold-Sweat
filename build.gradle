@@ -63,6 +63,8 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/api/temperature/block_temp/NetherPortalBlockTemp.java'
             include 'com/momosoftworks/coldsweat/api/temperature/block_temp/SimpleBlockTemp.java'
             include 'com/momosoftworks/coldsweat/api/temperature/block_temp/StaticBlockTemp.java'
+            include 'com/momosoftworks/coldsweat/api/temperature/block_temp/ThermalMachineBlockTemp.java'
+            include 'com/momosoftworks/coldsweat/core/init/MachineBlockTempInit.java'
             include 'com/momosoftworks/coldsweat/core/init/BlockTempInit.java'
             include 'com/momosoftworks/coldsweat/core/init/TempModifierInit.java'
             include 'com/momosoftworks/coldsweat/api/temperature/modifier/BiomeTempModifier.java'
@@ -130,6 +132,7 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/common/blockentity/HearthBlockEntity.java'
             include 'com/momosoftworks/coldsweat/common/blockentity/BoilerBlockEntity.java'
             include 'com/momosoftworks/coldsweat/common/blockentity/IceboxBlockEntity.java'
+            include 'com/momosoftworks/coldsweat/common/blockentity/ThermalFluidStorage.java'
         }
 
         resources {

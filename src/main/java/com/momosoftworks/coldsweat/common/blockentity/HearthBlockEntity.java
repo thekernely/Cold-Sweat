@@ -2,6 +2,7 @@ package com.momosoftworks.coldsweat.common.blockentity;
 
 import com.momosoftworks.coldsweat.api.registry.ThermalFuelRegistry;
 import com.momosoftworks.coldsweat.api.util.Temperature;
+import com.momosoftworks.coldsweat.common.block.HearthBottomBlock;
 import com.momosoftworks.coldsweat.common.block.SmokestackBlock;
 import com.momosoftworks.coldsweat.common.capability.handler.EntityTempManager;
 import com.momosoftworks.coldsweat.common.capability.temperature.TemperatureRuntime;
@@ -28,6 +29,7 @@ import net.minecraft.world.phys.AABB;
 
 import java.util.ArrayDeque;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -60,6 +62,8 @@ public class HearthBlockEntity extends BlockEntity implements Container
     private boolean usingHotFuel;
     private boolean usingColdFuel;
 
+    private final ThermalFluidStorage hotFluidStorage =
+            new ThermalFluidStorage(this);
     private final Set<BlockPos> spreadPositions = new HashSet<>();
 
     public HearthBlockEntity(BlockPos pos, BlockState state)
@@ -108,15 +112,32 @@ public class HearthBlockEntity extends BlockEntity implements Container
 
         if (blockEntity.getTicksExisted() % EFFECT_INTERVAL == 0)
         {
-            ThermalUsage usage = blockEntity.provideThermalEffects(
+            boolean heatingOn =
+                    blockEntity.hasThermalOutlet(level)
+                            && blockEntity.hasHeatingSignal(level);
+            boolean coolingOn =
+                    blockEntity.hasThermalOutlet(level)
+                            && blockEntity.hasCoolingSignal(level);
+
+            blockEntity.usingHotFuel =
+                    heatingOn && blockEntity.getHotFuel() > 0;
+            blockEntity.usingColdFuel =
+                    coolingOn && blockEntity.getColdFuel() > 0;
+
+            blockEntity.provideThermalEffects(
                     level,
                     pos,
-                    true,
-                    true,
+                    blockEntity.usingHotFuel,
+                    blockEntity.usingColdFuel,
                     10
             );
-            blockEntity.usingColdFuel = usage.cold();
-            blockEntity.usingHotFuel = usage.hot();
+
+            blockEntity.syncHearthBlockState(
+                    level,
+                    state,
+                    heatingOn,
+                    coolingOn
+            );
         }
 
         if (blockEntity.getTicksExisted() % FUEL_INTERVAL == 0)
@@ -147,6 +168,114 @@ public class HearthBlockEntity extends BlockEntity implements Container
         if (hasFuel() && insulationLevel < WARM_UP_TIME)
         {
             insulationLevel++;
+        }
+    }
+
+    protected boolean hasThermalOutlet(Level level)
+    {
+        return true;
+    }
+
+    protected List<Direction> getHeatingSides()
+    {
+        return List.of(Direction.EAST, Direction.SOUTH);
+    }
+
+    protected List<Direction> getCoolingSides()
+    {
+        return List.of(Direction.WEST, Direction.DOWN);
+    }
+
+    protected boolean hasHeatingSignal(Level level)
+    {
+        return hasSignalOnSides(level, getHeatingSides());
+    }
+
+    protected boolean hasCoolingSignal(Level level)
+    {
+        return hasSignalOnSides(level, getCoolingSides());
+    }
+
+    private boolean hasSignalOnSides(
+            Level level,
+            List<Direction> relativeSides
+    )
+    {
+        Direction facing = getBlockState().hasProperty(HearthBottomBlock.FACING)
+                ? getBlockState().getValue(HearthBottomBlock.FACING)
+                : Direction.NORTH;
+
+        for (Direction side : relativeSides)
+        {
+            Direction rotated = rotateFromNorth(side, facing);
+            if (level.hasSignal(
+                    getBlockPos().relative(rotated),
+                    rotated
+            ))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static Direction rotateFromNorth(
+            Direction side,
+            Direction facing
+    )
+    {
+        if (side.getAxis() == Direction.Axis.Y)
+        {
+            return side;
+        }
+
+        return switch (facing)
+        {
+            case NORTH -> side;
+            case SOUTH -> side.getOpposite();
+            case EAST -> switch (side)
+            {
+                case NORTH -> Direction.EAST;
+                case EAST -> Direction.SOUTH;
+                case SOUTH -> Direction.WEST;
+                case WEST -> Direction.NORTH;
+                default -> side;
+            };
+            case WEST -> switch (side)
+            {
+                case NORTH -> Direction.WEST;
+                case WEST -> Direction.SOUTH;
+                case SOUTH -> Direction.EAST;
+                case EAST -> Direction.NORTH;
+                default -> side;
+            };
+            default -> side;
+        };
+    }
+
+    private void syncHearthBlockState(
+            Level level,
+            BlockState state,
+            boolean heatingOn,
+            boolean coolingOn
+    )
+    {
+        if (!state.hasProperty(HearthBottomBlock.HEATING))
+        {
+            return;
+        }
+
+        BlockState next = state
+                .setValue(HearthBottomBlock.HEATING, heatingOn)
+                .setValue(HearthBottomBlock.COOLING, coolingOn)
+                .setValue(HearthBottomBlock.LIT, usingHotFuel)
+                .setValue(HearthBottomBlock.FROSTED, getColdFuel() > 0)
+                .setValue(HearthBottomBlock.SMART, false);
+
+        if (next != state)
+        {
+            level.setBlock(getBlockPos(), next, 3);
         }
     }
 
@@ -522,9 +651,15 @@ public class HearthBlockEntity extends BlockEntity implements Container
         return coldFuel;
     }
 
+    public ThermalFluidStorage getHotFluidStorage()
+    {
+        return hotFluidStorage;
+    }
+
     public void setHotFuel(int amount)
     {
         hotFuel = clampFuel(amount);
+        hotFluidStorage.syncFromFuel(hotFuel);
         setChanged();
     }
 
@@ -644,6 +779,7 @@ public class HearthBlockEntity extends BlockEntity implements Container
         ContainerHelper.loadAllItems(input, items);
         hotFuel = clampFuel(input.getIntOr("HotFuel", 0));
         coldFuel = clampFuel(input.getIntOr("ColdFuel", 0));
+        hotFluidStorage.syncFromFuel(hotFuel);
         ticksExisted = Math.max(0, input.getIntOr("TicksExisted", 0));
         insulationLevel = Math.max(
                 0,

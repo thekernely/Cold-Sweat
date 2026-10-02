@@ -7,6 +7,7 @@ import com.momosoftworks.coldsweat.core.init.ModBlocks;
 import com.momosoftworks.coldsweat.core.init.ModMenus;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.Containers;
@@ -14,6 +15,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.context.BlockPlaceContext;
@@ -228,6 +230,84 @@ public class HearthBottomBlock extends Block implements EntityBlock
         }
 
         return super.playerWillDestroy(level, pos, state, player);
+    }
+
+    @Override
+    public void animateTick(
+            BlockState state,
+            Level level,
+            BlockPos pos,
+            RandomSource random
+    )
+    {
+        if (state.getValue(LIT) && random.nextFloat() < 0.6F)
+        {
+            spawnHotParticles(level, pos, state, random);
+        }
+
+        if (state.getValue(FROSTED) && random.nextFloat() < 0.35F)
+        {
+            spawnColdMist(level, pos, random);
+        }
+    }
+
+    private static void spawnHotParticles(
+            Level level,
+            BlockPos pos,
+            BlockState state,
+            RandomSource random
+    )
+    {
+        Direction facing = state.getValue(FACING);
+        double x = pos.getX() + 0.5;
+        double y = pos.getY() + 0.35 + random.nextDouble() * 0.2;
+        double z = pos.getZ() + 0.5;
+        double side = random.nextDouble() * 0.5 - 0.25;
+
+        if (facing.getAxis() == Direction.Axis.X)
+        {
+            x += facing.getStepX() * 0.52;
+            z += side;
+        }
+        else
+        {
+            z += facing.getStepZ() * 0.52;
+            x += side;
+        }
+
+        level.addParticle(ParticleTypes.SMOKE, x, y, z, 0, 0, 0);
+        level.addParticle(ParticleTypes.FLAME, x, y, z, 0, 0, 0);
+    }
+
+    private static void spawnColdMist(
+            Level level,
+            BlockPos pos,
+            RandomSource random
+    )
+    {
+        double x = pos.getX() + 0.5 + random.nextDouble() - 0.5;
+        double y = pos.getY() + 0.08 + random.nextDouble() * 0.22;
+        double z = pos.getZ() + 0.5 + random.nextDouble() - 0.5;
+        level.addParticle(ParticleTypes.CLOUD, x, y, z, 0, 0.005, 0);
+    }
+
+    @Override
+    protected boolean hasAnalogOutputSignal(BlockState state)
+    {
+        return true;
+    }
+
+    @Override
+    protected int getAnalogOutputSignal(
+            BlockState state,
+            Level level,
+            BlockPos pos,
+            Direction direction
+    )
+    {
+        return AbstractContainerMenu.getRedstoneSignalFromBlockEntity(
+                level.getBlockEntity(pos)
+        );
     }
 
     @Override

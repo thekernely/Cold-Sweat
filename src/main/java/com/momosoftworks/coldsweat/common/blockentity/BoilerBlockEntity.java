@@ -2,14 +2,18 @@ package com.momosoftworks.coldsweat.common.blockentity;
 
 import com.momosoftworks.coldsweat.api.registry.ThermalFuelRegistry;
 import com.momosoftworks.coldsweat.common.block.BoilerBlock;
+import com.momosoftworks.coldsweat.common.block.SmokestackBlock;
 import com.momosoftworks.coldsweat.core.init.ModBlockEntities;
 import com.momosoftworks.coldsweat.core.init.ModItemComponents;
 import com.momosoftworks.coldsweat.core.init.ModItems;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+
+import java.util.List;
 
 public class BoilerBlockEntity extends HearthBlockEntity
 {
@@ -54,13 +58,17 @@ public class BoilerBlockEntity extends HearthBlockEntity
         if (blockEntity.getTicksExisted() % EFFECT_INTERVAL == 0)
         {
             blockEntity.usingThermalHeat =
-                    blockEntity.provideThermalEffects(
-                            level,
-                            pos,
-                            true,
-                            false,
-                            5
-                    ).hot();
+                    blockEntity.hasThermalOutlet(level)
+                            && blockEntity.hasHeatingSignal(level)
+                            && blockEntity.getFuel() > 0;
+
+            blockEntity.provideThermalEffects(
+                    level,
+                    pos,
+                    blockEntity.usingThermalHeat,
+                    false,
+                    5
+            );
         }
 
         boolean activeDemand =
@@ -86,6 +94,25 @@ public class BoilerBlockEntity extends HearthBlockEntity
                     3
             );
         }
+    }
+
+    @Override
+    protected boolean hasThermalOutlet(Level level)
+    {
+        return level.getBlockState(getBlockPos().above()).getBlock()
+                instanceof SmokestackBlock;
+    }
+
+    @Override
+    protected List<Direction> getHeatingSides()
+    {
+        return List.of(Direction.values());
+    }
+
+    @Override
+    protected List<Direction> getCoolingSides()
+    {
+        return List.of();
     }
 
     private boolean hasWaterskinBelowTarget()

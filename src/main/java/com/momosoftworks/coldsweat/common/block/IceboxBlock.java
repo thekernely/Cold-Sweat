@@ -7,15 +7,20 @@ import com.momosoftworks.coldsweat.core.init.ModMenus;
 import com.momosoftworks.coldsweat.core.init.ModItems;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.ScheduledTickAccess;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -56,7 +61,12 @@ public class IceboxBlock extends Block implements EntityBlock
         return defaultBlockState()
                 .setValue(FACING, context.getHorizontalDirection().getOpposite())
                 .setValue(FROSTED, false)
-                .setValue(SMOKESTACK, false);
+                .setValue(
+                        SMOKESTACK,
+                        context.getLevel()
+                                .getBlockState(context.getClickedPos().above())
+                                .getBlock() instanceof SmokestackBlock
+                );
     }
 
     @Override
@@ -136,6 +146,76 @@ public class IceboxBlock extends Block implements EntityBlock
         {
             stack.shrink(1);
         }
+    }
+
+    @Override
+    protected BlockState updateShape(
+            BlockState state,
+            LevelReader level,
+            ScheduledTickAccess ticks,
+            BlockPos pos,
+            Direction directionToNeighbour,
+            BlockPos neighbourPos,
+            BlockState neighbourState,
+            RandomSource random
+    )
+    {
+        if (directionToNeighbour == Direction.UP)
+        {
+            state = state.setValue(
+                    SMOKESTACK,
+                    neighbourState.getBlock() instanceof SmokestackBlock
+            );
+        }
+
+        return super.updateShape(
+                state,
+                level,
+                ticks,
+                pos,
+                directionToNeighbour,
+                neighbourPos,
+                neighbourState,
+                random
+        );
+    }
+
+    @Override
+    public void animateTick(
+            BlockState state,
+            Level level,
+            BlockPos pos,
+            RandomSource random
+    )
+    {
+        if (!state.getValue(FROSTED) || random.nextFloat() >= 0.4F)
+        {
+            return;
+        }
+
+        double x = pos.getX() + 0.5 + random.nextDouble() - 0.5;
+        double y = pos.getY() + 0.08 + random.nextDouble() * 0.25;
+        double z = pos.getZ() + 0.5 + random.nextDouble() - 0.5;
+        level.addParticle(ParticleTypes.CLOUD, x, y, z, 0, 0.005, 0);
+    }
+
+    @Override
+    protected boolean hasAnalogOutputSignal(BlockState state)
+    {
+        return true;
+    }
+
+    @Override
+    protected int getAnalogOutputSignal(
+            BlockState state,
+            Level level,
+            BlockPos pos,
+            Direction direction
+    )
+    {
+        return AbstractContainerMenu.getRedstoneSignalFromBlockEntity(
+                level.getBlockEntity(pos)
+        );
     }
 
     @Override
