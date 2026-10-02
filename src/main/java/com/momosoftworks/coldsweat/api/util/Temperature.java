@@ -3,7 +3,10 @@ package com.momosoftworks.coldsweat.api.util;
 import com.mojang.serialization.Codec;
 import com.momosoftworks.coldsweat.common.capability.temperature.TemperatureData;
 import com.momosoftworks.coldsweat.core.init.ModDataAttachments;
+import io.netty.buffer.ByteBuf;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.util.StringRepresentable;
 import net.minecraft.world.entity.LivingEntity;
 
@@ -13,8 +16,7 @@ import java.util.EnumMap;
  * General helper class for temperature-related actions.
  *
  * M3 is restoring this class incrementally. Unit/trait behavior and persistent
- * entity trait access are live; modifiers/events/networking are restored in
- * later M3 slices.
+ * entity trait access are live; modifiers/events are restored in later M3 slices.
  */
 public final class Temperature
 {
@@ -56,21 +58,11 @@ public final class Temperature
         return value;
     }
 
-    /**
-     * Gets a persisted temperature trait from a living entity.
-     */
     public static double get(LivingEntity entity, Trait trait)
     {
         return getData(entity).getTrait(trait);
     }
 
-    /**
-     * Replaces a persisted temperature trait.
-     *
-     * The attachment value is immutable, so the full TemperatureData value is
-     * replaced through Fabric's API. This guarantees persistence bookkeeping is
-     * correctly notified.
-     */
     public static void set(LivingEntity entity, Trait trait, double value)
     {
         entity.setAttached(
@@ -141,6 +133,19 @@ public final class Temperature
         HEAT_DAMPENING("heat_dampening", true, true, true);
 
         public static final Codec<Trait> CODEC = enumIgnoreCase(values());
+
+        public static final StreamCodec<ByteBuf, Trait> STREAM_CODEC =
+                ByteBufCodecs.VAR_INT.map(
+                        index -> {
+                            Trait[] values = values();
+                            if (index < 0 || index >= values.length)
+                            {
+                                throw new IllegalArgumentException("Invalid temperature trait network id: " + index);
+                            }
+                            return values[index];
+                        },
+                        Trait::ordinal
+                );
 
         private final String id;
         private final boolean forTemperature;

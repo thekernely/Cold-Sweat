@@ -2,23 +2,33 @@ package com.momosoftworks.coldsweat.common.capability.temperature;
 
 import com.mojang.serialization.Codec;
 import com.momosoftworks.coldsweat.api.util.Temperature;
+import io.netty.buffer.ByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
 
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 
 /**
- * Immutable persistent temperature-trait state.
- *
- * Fabric Data Attachments work best with immutable values. Every mutation
- * therefore produces a new TemperatureData instance and replaces the attached
- * value through Fabric's attachment API.
+ * Immutable persistent and network-syncable temperature-trait state.
  */
 public final class TemperatureData
 {
     public static final Codec<TemperatureData> CODEC =
             Codec.unboundedMap(Temperature.Trait.CODEC, Codec.DOUBLE)
                     .xmap(TemperatureData::new, TemperatureData::traits);
+
+    public static final StreamCodec<ByteBuf, TemperatureData> STREAM_CODEC =
+            ByteBufCodecs.map(
+                            size -> new EnumMap<>(Temperature.Trait.class),
+                            Temperature.Trait.STREAM_CODEC,
+                            ByteBufCodecs.DOUBLE
+                    )
+                    .map(
+                            TemperatureData::new,
+                            TemperatureData::copyTraits
+                    );
 
     private final Map<Temperature.Trait, Double> traits;
 
