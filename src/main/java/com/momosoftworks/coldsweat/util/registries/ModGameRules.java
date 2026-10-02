@@ -1,12 +1,23 @@
 package com.momosoftworks.coldsweat.util.registries;
 
-import net.minecraft.world.level.GameRules;
+import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
+import net.fabricmc.fabric.api.gamerule.v1.GameRuleBuilder;
+import net.minecraft.world.level.gamerules.GameRule;
+import net.minecraft.world.level.gamerules.GameRuleCategory;
 
-public class ModGameRules
+public final class ModGameRules
 {
-    public static GameRules.Key<GameRules.BooleanValue> RULE_SLUSH_SOURCE_CONVERSION;
+    public static final GameRule<Boolean> RULE_SLUSH_SOURCE_CONVERSION = GameRuleBuilder
+            .forBoolean(false)
+            .category(GameRuleCategory.MISC)
+            .buildAndRegister(ColdSweatFabric.id("slush_source_conversion"));
 
-    public static void registerGameRules()
-    {   RULE_SLUSH_SOURCE_CONVERSION = GameRules.register("slushSourceConversion", GameRules.Category.PLAYER, GameRules.BooleanValue.create(false));
+    public static void initialize()
+    {
+        ColdSweatFabric.LOGGER.info("Registering Cold Sweat game rules.");
+    }
+
+    private ModGameRules()
+    {
     }
 }

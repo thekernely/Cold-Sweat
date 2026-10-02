@@ -3,6 +3,7 @@ package com.momosoftworks.coldsweat.fabric;
 import com.momosoftworks.coldsweat.core.init.ModAttributes;
 import com.momosoftworks.coldsweat.core.init.ModParticleTypes;
 import com.momosoftworks.coldsweat.core.init.ModSounds;
+import com.momosoftworks.coldsweat.util.registries.ModGameRules;
 import net.fabricmc.api.ModInitializer;
 import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
@@ -26,5 +27,6 @@ public final class ColdSweatFabric implements ModInitializer
         ModSounds.initialize();
         ModParticleTypes.initialize();
         ModAttributes.initialize();
+        ModGameRules.initialize();
     }
 }
