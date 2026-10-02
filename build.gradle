@@ -32,6 +32,7 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/core/init/ModEffects.java'
             include 'com/momosoftworks/coldsweat/core/init/ModPotions.java'
             include 'com/momosoftworks/coldsweat/core/init/ModArmorMaterials.java'
+            include 'com/momosoftworks/coldsweat/core/init/ModItemComponents.java'
             include 'com/momosoftworks/coldsweat/common/effect/**'
             include 'com/momosoftworks/coldsweat/util/registries/ModGameRules.java'
 
