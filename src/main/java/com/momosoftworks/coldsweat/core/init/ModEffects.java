@@ -1,21 +1,37 @@
 package com.momosoftworks.coldsweat.core.init;
 
 import com.momosoftworks.coldsweat.common.effect.FrigidnessEffect;
-import com.momosoftworks.coldsweat.common.effect.WarmthEffect;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.world.effect.MobEffect;
-import com.momosoftworks.coldsweat.ColdSweat;
-import com.momosoftworks.coldsweat.common.effect.IceResistanceEffect;
 import com.momosoftworks.coldsweat.common.effect.GraceEffect;
-import net.neoforged.neoforge.registries.DeferredHolder;
-import net.neoforged.neoforge.registries.DeferredRegister;
+import com.momosoftworks.coldsweat.common.effect.IceResistanceEffect;
+import com.momosoftworks.coldsweat.common.effect.WarmthEffect;
+import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
+import net.minecraft.core.Holder;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.effect.MobEffect;
 
-public class ModEffects
+public final class ModEffects
 {
-    public static final DeferredRegister<MobEffect> EFFECTS = DeferredRegister.create(Registries.MOB_EFFECT, ColdSweat.MOD_ID);
+    public static final Holder<MobEffect> FRIGIDNESS = register("frigidness", new FrigidnessEffect());
+    public static final Holder<MobEffect> WARMTH = register("warmth", new WarmthEffect());
+    public static final Holder<MobEffect> GRACE = register("grace", new GraceEffect());
+    public static final Holder<MobEffect> ICE_RESISTANCE = register("ice_resistance", new IceResistanceEffect());
 
-    public static final DeferredHolder<MobEffect, MobEffect> FRIGIDNESS = EFFECTS.register("frigidness", FrigidnessEffect::new);
-    public static final DeferredHolder<MobEffect, MobEffect> WARMTH = EFFECTS.register("warmth", WarmthEffect::new);
-    public static final DeferredHolder<MobEffect, MobEffect> GRACE = EFFECTS.register("grace", GraceEffect::new);
-    public static final DeferredHolder<MobEffect, MobEffect> ICE_RESISTANCE = EFFECTS.register("ice_resistance", IceResistanceEffect::new);
+    private static Holder<MobEffect> register(String path, MobEffect effect)
+    {
+        return Registry.registerForHolder(
+                BuiltInRegistries.MOB_EFFECT,
+                ColdSweatFabric.id(path),
+                effect
+        );
+    }
+
+    public static void initialize()
+    {
+        ColdSweatFabric.LOGGER.info("Registering Cold Sweat mob effects.");
+    }
+
+    private ModEffects()
+    {
+    }
 }

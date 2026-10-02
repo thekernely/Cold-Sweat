@@ -29,6 +29,8 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/core/init/ModSounds.java'
             include 'com/momosoftworks/coldsweat/core/init/ModParticleTypes.java'
             include 'com/momosoftworks/coldsweat/core/init/ModAttributes.java'
+            include 'com/momosoftworks/coldsweat/core/init/ModEffects.java'
+            include 'com/momosoftworks/coldsweat/common/effect/**'
             include 'com/momosoftworks/coldsweat/util/registries/ModGameRules.java'
         }
 
@@ -40,6 +42,8 @@ sourceSets {
             include 'assets/cold_sweat/sounds/**'
             include 'assets/cold_sweat/particles/**'
             include 'assets/cold_sweat/textures/particle/**'
+            include 'assets/cold_sweat/textures/mob_effect/**'
+            include 'assets/cold_sweat/lang/**'
         }
     }
 }

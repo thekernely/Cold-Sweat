@@ -5,7 +5,8 @@ import net.minecraft.world.effect.MobEffectCategory;
 
 public class GraceEffect extends MobEffect
 {
-    public GraceEffect() {
+    public GraceEffect()
+    {
         super(MobEffectCategory.BENEFICIAL, 7355178);
     }
 }
