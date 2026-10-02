@@ -101,6 +101,12 @@ sourceSets {
             // M5.5: persistent sewn insulation state and component manager.
             include 'com/momosoftworks/coldsweat/common/capability/insulation/ItemInsulationCap.java'
             include 'com/momosoftworks/coldsweat/common/capability/handler/ItemInsulationManager.java'
+
+            // M5.6: consumable temperature runtime and Soul Sprout gameplay.
+            include 'com/momosoftworks/coldsweat/api/registry/ItemTemperatureRegistry.java'
+            include 'com/momosoftworks/coldsweat/api/temperature/modifier/FoodTempModifier.java'
+            include 'com/momosoftworks/coldsweat/api/temperature/modifier/SoulSproutTempModifier.java'
+            include 'com/momosoftworks/coldsweat/common/item/SoulSproutItem.java'
         }
 
         resources {

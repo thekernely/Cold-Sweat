@@ -1,82 +1,42 @@
 package com.momosoftworks.coldsweat.common.item;
 
-import com.momosoftworks.coldsweat.common.block.SoulStalkBlock;
-import com.momosoftworks.coldsweat.core.init.ModBlocks;
-import com.momosoftworks.coldsweat.core.init.ModItems;
-import com.momosoftworks.coldsweat.data.tag.ModBlockTags;
-import net.minecraft.advancements.AdvancementHolder;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
-import net.minecraft.core.Position;
-import net.minecraft.core.dispenser.BlockSource;
-import net.minecraft.core.dispenser.DefaultDispenseItemBehavior;
-import net.minecraft.core.dispenser.DispenseItemBehavior;
-import net.minecraft.resources.ResourceLocation;
+import com.momosoftworks.coldsweat.api.registry.ItemTemperatureRegistry;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.item.ItemNameBlockItem;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.DispenserBlock;
-import net.minecraft.world.level.block.state.BlockState;
 
-public class SoulSproutItem extends ItemNameBlockItem
+/**
+ * M5 gameplay half of the Soul Sprout item.
+ *
+ * The upstream item is also the placeable item for Soul Stalk and has dispenser
+ * planting behavior. Soul Stalk is an M6 block, so those block-facing hooks are
+ * deliberately deferred rather than pulling M6 into the item milestone.
+ */
+public final class SoulSproutItem extends Item
 {
-    public SoulSproutItem(Block block, Properties properties)
-    {   super(block, properties);
-        DispenserBlock.registerBehavior(this, DISPENSE_BEHAVIOR);
+    public SoulSproutItem(Properties properties)
+    {
+        super(properties);
     }
 
     @Override
-    protected boolean placeBlock(BlockPlaceContext context, BlockState state)
+    public ItemStack finishUsingItem(
+            ItemStack stack,
+            Level level,
+            LivingEntity entity
+    )
     {
-        boolean placed = super.placeBlock(context, state);
-        if (placed && context.getPlayer() instanceof ServerPlayer player)
+        ItemStack result = super.finishUsingItem(stack, level, entity);
+
+        entity.clearFire();
+
+        if (entity instanceof ServerPlayer player)
         {
-            // Grant the player the "A Seedy Place" advancement
-            if (player.getServer() != null)
-            {   AdvancementHolder seedyPlace = player.getServer().getAdvancements().get(ResourceLocation.withDefaultNamespace("husbandry/plant_seed"));
-                if (seedyPlace != null)
-                {   player.getAdvancements().award(seedyPlace, "nether_wart");
-                }
-            }
+            ItemTemperatureRegistry.applyConsumed(player, this);
         }
-        return placed;
+
+        return result;
     }
-
-    @Override
-    public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity entity)
-    {   entity.clearFire();
-        return super.finishUsingItem(stack, level, entity);
-    }
-
-    public static final DispenseItemBehavior DISPENSE_BEHAVIOR = new DefaultDispenseItemBehavior()
-    {
-        @Override
-        protected ItemStack execute(BlockSource source, ItemStack stack)
-        {
-            if (stack.is(ModItems.SOUL_SPROUT))
-            {
-                Level level = source.level();
-                Direction direction = source.state().getValue(DispenserBlock.FACING);
-                BlockPos frontPos = BlockPos.containing(DispenserBlock.getDispensePosition(source));
-                BlockState frontState = level.getBlockState(frontPos);
-                BlockState groundState = level.getBlockState(frontPos.below());
-
-                if (frontState.canBeReplaced() && frontState.getFluidState().isEmpty()
-                && groundState.is(ModBlockTags.SOUL_STALK_PLACEABLE_ON))
-                {
-                    level.setBlock(frontPos, ModBlocks.SOUL_STALK.value().defaultBlockState().setValue(SoulStalkBlock.SECTION, SoulStalkBlock.Section.BUD), 3);
-                    this.playAnimation(source, direction);
-                    this.playSound(source);
-                    stack.shrink(1);
-                    return stack;
-                }
-            }
-            return super.execute(source, stack);
-        }
-    };
 }

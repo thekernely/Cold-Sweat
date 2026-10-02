@@ -1,19 +1,26 @@
 package com.momosoftworks.coldsweat.core.init;
 
+import com.momosoftworks.coldsweat.common.item.SoulSproutItem;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.component.Consumables;
 import net.minecraft.world.item.equipment.ArmorType;
+
+import java.util.function.Function;
 
 public final class ModItems
 {
     public static final Item GOAT_FUR = registerSimple("goat_fur");
     public static final Item HOGLIN_HIDE = registerSimple("hoglin_hide");
     public static final Item CHAMELEON_MOLT = registerSimple("chameleon_molt");
+
+    public static final Item SOUL_SPROUT = registerSoulSprout();
 
     /*
      * Minecraft 26.2 defines humanoid armor through item components rather than
@@ -60,6 +67,26 @@ public final class ModItems
             "chameleon_boots", ModArmorMaterials.CHAMELEON, ArmorType.BOOTS, ModArmorMaterials.CHAMELEON_DURABILITY
     );
 
+    private static Item registerSoulSprout()
+    {
+        FoodProperties food = new FoodProperties.Builder()
+                .nutrition(3)
+                .saturationModifier(0.5f)
+                .alwaysEdible()
+                .build();
+
+        return register(
+                "soul_sprout",
+                properties -> new SoulSproutItem(properties),
+                new Item.Properties().food(
+                        food,
+                        Consumables.defaultFood()
+                                .consumeSeconds(0.8f)
+                                .build()
+                )
+        );
+    }
+
     private static Item registerSimple(String path)
     {
         return register(path, new Item.Properties());
@@ -82,19 +109,28 @@ public final class ModItems
 
     private static Item register(String path, Item.Properties properties)
     {
+        return register(path, Item::new, properties);
+    }
+
+    private static Item register(
+            String path,
+            Function<Item.Properties, ? extends Item> factory,
+            Item.Properties properties
+    )
+    {
         Identifier id = ColdSweatFabric.id(path);
         ResourceKey<Item> key = ResourceKey.create(Registries.ITEM, id);
 
         return Registry.register(
                 BuiltInRegistries.ITEM,
                 key,
-                new Item(properties.setId(key))
+                factory.apply(properties.setId(key))
         );
     }
 
     public static void initialize()
     {
-        ColdSweatFabric.LOGGER.info("Registering Cold Sweat material and armor items.");
+        ColdSweatFabric.LOGGER.info("Registering Cold Sweat material, consumable, and armor items.");
     }
 
     private ModItems()

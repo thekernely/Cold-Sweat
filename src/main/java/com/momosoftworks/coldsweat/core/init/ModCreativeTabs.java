@@ -23,6 +23,7 @@ public final class ModCreativeTabs
                 output.accept(ModItems.GOAT_FUR);
                 output.accept(ModItems.HOGLIN_HIDE);
                 output.accept(ModItems.CHAMELEON_MOLT);
+                output.accept(ModItems.SOUL_SPROUT);
 
                 output.accept(ModItems.HOGLIN_HELMET);
                 output.accept(ModItems.HOGLIN_CHESTPLATE);
