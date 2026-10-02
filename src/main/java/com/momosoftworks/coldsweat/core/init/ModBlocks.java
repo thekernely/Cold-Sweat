@@ -1,25 +1,86 @@
 package com.momosoftworks.coldsweat.core.init;
 
-import com.momosoftworks.coldsweat.ColdSweat;
-import com.momosoftworks.coldsweat.common.block.*;
-import com.momosoftworks.coldsweat.common.fluid.SlushFluid;
+import com.momosoftworks.coldsweat.common.block.BoilerBlock;
+import com.momosoftworks.coldsweat.common.block.HearthBottomBlock;
+import com.momosoftworks.coldsweat.common.block.HearthTopBlock;
+import com.momosoftworks.coldsweat.common.block.IceboxBlock;
+import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.LiquidBlock;
-import net.neoforged.neoforge.registries.DeferredBlock;
-import net.neoforged.neoforge.registries.DeferredRegister;
+import net.minecraft.world.level.block.SoundType;
+import net.minecraft.world.level.block.state.BlockBehaviour;
 
-public class ModBlocks
+import java.util.function.Function;
+
+/**
+ * M6 thermal-machine block registry.
+ *
+ * The full upstream block behavior is restored incrementally on top of these
+ * stable 26.2 registrations. Keeping IDs identical preserves datapack/model
+ * compatibility while the block entities gain their gameplay systems.
+ */
+public final class ModBlocks
 {
-    public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBlocks(ColdSweat.MOD_ID);
+    public static final HearthBottomBlock HEARTH_BOTTOM = register(
+            "hearth_bottom",
+            HearthBottomBlock::new,
+            BlockBehaviour.Properties.of()
+                    .sound(SoundType.STONE)
+                    .strength(2.0F, 10.0F)
+                    .requiresCorrectToolForDrops()
+                    .noOcclusion()
+    );
 
-    public static final DeferredBlock<Block> BOILER = BLOCKS.register("boiler", () -> new BoilerBlock(BoilerBlock.getProperties()));
-    public static final DeferredBlock<Block> ICEBOX = BLOCKS.register("icebox", () -> new IceboxBlock(IceboxBlock.getProperties()));
-    public static final DeferredBlock<Block> SEWING_TABLE = BLOCKS.register("sewing_table", () -> new SewingTableBlock(SewingTableBlock.getProperties()));
-    public static final DeferredBlock<Block> MINECART_INSULATION = BLOCKS.register("minecart_insulation", () -> new MinecartInsulationBlock(MinecartInsulationBlock.getProperties()));
-    public static final DeferredBlock<Block> HEARTH_BOTTOM = BLOCKS.register("hearth_bottom", () -> new HearthBottomBlock(HearthBottomBlock.getProperties()));
-    public static final DeferredBlock<Block> HEARTH_TOP = BLOCKS.register("hearth_top", () -> new HearthTopBlock(HearthTopBlock.getProperties()));
-    public static final DeferredBlock<Block> THERMOLITH = BLOCKS.register("thermolith", () -> new ThermolithBlock(ThermolithBlock.getProperties()));
-    public static final DeferredBlock<Block> SOUL_STALK = BLOCKS.register("soul_stalk", () -> new SoulStalkBlock(SoulStalkBlock.getProperties()));
-    public static final DeferredBlock<Block> SMOKESTACK = BLOCKS.register("smokestack", () -> new SmokestackBlock(SmokestackBlock.getProperties()));
-    public static final DeferredBlock<LiquidBlock> SLUSH = BLOCKS.register("slush", () -> new SlushLiquidBlock(ModFluids.SLUSH, SlushFluid.getBlockProperties()));
+    public static final HearthTopBlock HEARTH_TOP = register(
+            "hearth_top",
+            HearthTopBlock::new,
+            BlockBehaviour.Properties.of()
+                    .sound(SoundType.STONE)
+                    .strength(2.0F, 10.0F)
+                    .requiresCorrectToolForDrops()
+                    .noOcclusion()
+    );
+
+    public static final BoilerBlock BOILER = register(
+            "boiler",
+            BoilerBlock::new,
+            BlockBehaviour.Properties.of()
+                    .sound(SoundType.STONE)
+                    .strength(2.0F, 10.0F)
+                    .requiresCorrectToolForDrops()
+    );
+
+    public static final IceboxBlock ICEBOX = register(
+            "icebox",
+            IceboxBlock::new,
+            BlockBehaviour.Properties.of()
+                    .sound(SoundType.WOOD)
+                    .strength(2.0F, 5.0F)
+                    .noOcclusion()
+    );
+
+    private static <T extends Block> T register(
+            String path,
+            Function<BlockBehaviour.Properties, T> factory,
+            BlockBehaviour.Properties properties
+    )
+    {
+        Identifier id = ColdSweatFabric.id(path);
+        ResourceKey<Block> key = ResourceKey.create(Registries.BLOCK, id);
+        T block = factory.apply(properties.setId(key));
+        return Registry.register(BuiltInRegistries.BLOCK, key, block);
+    }
+
+    public static void initialize()
+    {
+        ColdSweatFabric.LOGGER.info("Registering Cold Sweat Hearth, Boiler, and Icebox blocks.");
+    }
+
+    private ModBlocks()
+    {
+    }
 }

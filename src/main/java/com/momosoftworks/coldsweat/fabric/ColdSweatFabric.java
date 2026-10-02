@@ -8,6 +8,8 @@ import com.momosoftworks.coldsweat.core.init.BlockTempInit;
 import com.momosoftworks.coldsweat.core.init.ModAdvancementTriggers;
 import com.momosoftworks.coldsweat.core.init.ModArmorMaterials;
 import com.momosoftworks.coldsweat.core.init.ModAttributes;
+import com.momosoftworks.coldsweat.core.init.ModBlockEntities;
+import com.momosoftworks.coldsweat.core.init.ModBlocks;
 import com.momosoftworks.coldsweat.core.init.ModCreativeTabs;
 import com.momosoftworks.coldsweat.core.init.ModDataAttachments;
 import com.momosoftworks.coldsweat.core.init.ModEffects;
@@ -45,7 +47,9 @@ public final class ColdSweatFabric implements ModInitializer
         ModPotions.initialize();
         ModArmorMaterials.initialize();
         ModItemComponents.initialize();
+        ModBlocks.initialize();
         ModItems.initialize();
+        ModBlockEntities.initialize();
         InsulationRegistry.initialize();
         ItemTemperatureRegistry.initialize();
         ModAdvancementTriggers.initialize();

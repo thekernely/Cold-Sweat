@@ -13,6 +13,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.food.FoodProperties;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemUseAnimation;
 import net.minecraft.world.item.Rarity;
@@ -60,6 +61,17 @@ public final class ModItems
             new Item.Properties()
                     .rarity(Rarity.UNCOMMON)
                     .stacksTo(1)
+    );
+
+    // M6 thermal-machine block items. Hearth intentionally maps to hearth_bottom.
+    public static final Item HEARTH = registerBlockItem(
+            "hearth", ModBlocks.HEARTH_BOTTOM, new Item.Properties().stacksTo(1)
+    );
+    public static final Item BOILER = registerBlockItem(
+            "boiler", ModBlocks.BOILER, new Item.Properties()
+    );
+    public static final Item ICEBOX = registerBlockItem(
+            "icebox", ModBlocks.ICEBOX, new Item.Properties()
     );
 
     /*
@@ -152,6 +164,11 @@ public final class ModItems
         return register(path, Item::new, properties);
     }
 
+    private static Item registerBlockItem(String path, net.minecraft.world.level.block.Block block, Item.Properties properties)
+    {
+        return register(path, props -> new BlockItem(block, props.useBlockDescriptionPrefix()), properties);
+    }
+
     private static Item register(
             String path,
             Function<Item.Properties, ? extends Item> factory,
@@ -170,7 +187,7 @@ public final class ModItems
 
     public static void initialize()
     {
-        ColdSweatFabric.LOGGER.info("Registering Cold Sweat material, consumable, utility, and armor items.");
+        ColdSweatFabric.LOGGER.info("Registering Cold Sweat material, consumable, utility, armor, and thermal-machine items.");
     }
 
     private ModItems()
