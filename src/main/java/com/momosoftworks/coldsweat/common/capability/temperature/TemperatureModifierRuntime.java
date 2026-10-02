@@ -1,15 +1,12 @@
 package com.momosoftworks.coldsweat.common.capability.temperature;
 
-import com.momosoftworks.coldsweat.api.temperature.modifier.BiomeTempModifier;
-import com.momosoftworks.coldsweat.api.temperature.modifier.ElevationTempModifier;
-import com.momosoftworks.coldsweat.api.temperature.modifier.ShadeTempModifier;
+import com.momosoftworks.coldsweat.api.registry.TempModifierRegistry;
 import com.momosoftworks.coldsweat.api.temperature.modifier.TempModifier;
 import com.momosoftworks.coldsweat.api.util.Temperature;
 import com.momosoftworks.coldsweat.common.capability.handler.EntityTempManager;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 
 import java.util.ArrayList;
@@ -70,8 +67,8 @@ public final class TemperatureModifierRuntime
      *
      * Biome -> Shade -> Elevation
      *
-     * Cave, block, nearby-entity, config, and compatibility modifiers join this
-     * chain in later M4 slices.
+     * Modifier instances are resolved through TempModifierRegistry using the
+     * same stable IDs as upstream.
      */
     public static void installDefaultWorldModifiers(LivingEntity entity)
     {
@@ -79,9 +76,15 @@ public final class TemperatureModifierRuntime
 
         List<TempModifier> modifiers = new ArrayList<>();
 
-        modifiers.add(new BiomeTempModifier(49).tickRate(20));
-        modifiers.add(new ShadeTempModifier().tickRate(10));
-        modifiers.add(new ElevationTempModifier(49).tickRate(20));
+        modifiers.add(
+                createRegistered("biomes").tickRate(20)
+        );
+        modifiers.add(
+                createRegistered("shade").tickRate(10)
+        );
+        modifiers.add(
+                createRegistered("elevation").tickRate(20)
+        );
 
         for (TempModifier modifier : modifiers)
         {
@@ -96,6 +99,15 @@ public final class TemperatureModifierRuntime
         return WORLD_MODIFIERS.getOrDefault(entity, List.of());
     }
 
+    private static TempModifier createRegistered(String path)
+    {
+        return TempModifierRegistry.getValue(ColdSweatFabric.id(path))
+                .orElseThrow(() -> new IllegalStateException(
+                        "Missing registered Cold Sweat TempModifier: "
+                                + ColdSweatFabric.id(path)
+                ));
+    }
+
     private static void tickAll()
     {
         if (WORLD_MODIFIERS.isEmpty())
@@ -105,7 +117,8 @@ public final class TemperatureModifierRuntime
 
         for (LivingEntity entity : List.copyOf(WORLD_MODIFIERS.keySet()))
         {
-            if (entity.isRemoved() || !EntityTempManager.isTemperatureEnabled(entity))
+            if (entity.isRemoved()
+                    || !EntityTempManager.isTemperatureEnabled(entity))
             {
                 removeEntity(entity);
                 continue;
@@ -123,10 +136,6 @@ public final class TemperatureModifierRuntime
             return;
         }
 
-        /*
-         * Upstream WORLD calculation begins at zero, runs the TempModifier
-         * chain, then applies the WORLD attribute layer.
-         */
         double modifiedWorldTemperature = Temperature.apply(
                 0.0,
                 entity,
@@ -163,12 +172,18 @@ public final class TemperatureModifierRuntime
                 modifier.tick(entity);
             }
 
-            modifier.setTicksExisted(modifier.getTicksExisted() + 1);
+            modifier.setTicksExisted(
+                    modifier.getTicksExisted() + 1
+            );
 
             int expireTime = modifier.getExpireTime();
-            if (expireTime != -1 && modifier.getTicksExisted() > expireTime)
+            if (expireTime != -1
+                    && modifier.getTicksExisted() > expireTime)
             {
-                modifier.onRemoved(entity, Temperature.Trait.WORLD);
+                modifier.onRemoved(
+                        entity,
+                        Temperature.Trait.WORLD
+                );
                 modifiers.remove(i);
                 i--;
             }

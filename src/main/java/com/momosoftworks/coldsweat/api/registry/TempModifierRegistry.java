@@ -1,107 +1,173 @@
 package com.momosoftworks.coldsweat.api.registry;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
-import com.google.common.collect.ImmutableBiMap;
-import com.momosoftworks.coldsweat.ColdSweat;
 import com.momosoftworks.coldsweat.api.temperature.modifier.TempModifier;
-import com.momosoftworks.coldsweat.util.exceptions.RegistryFailureException;
-import com.momosoftworks.coldsweat.util.math.CSMath;
-import net.minecraft.resources.ResourceLocation;
-import org.jetbrains.annotations.Nullable;
+import net.minecraft.resources.Identifier;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-public class TempModifierRegistry
+/**
+ * Registry for Cold Sweat temperature modifier factories.
+ *
+ * This mirrors upstream's logical registry without depending on NeoForge's
+ * registration event bus. Fabric initialization fills this registry directly.
+ */
+public final class TempModifierRegistry
 {
-    static BiMap<ResourceLocation, TempModifierHolder> TEMP_MODIFIERS = HashBiMap.create();
+    private static final Map<Identifier, TempModifierHolder> TEMP_MODIFIERS =
+            new LinkedHashMap<>();
 
-    public static BiMap<ResourceLocation, TempModifierHolder> getEntries()
-    {   return ImmutableBiMap.copyOf(TEMP_MODIFIERS);
+    public static Map<Identifier, TempModifierHolder> getEntries()
+    {
+        return Collections.unmodifiableMap(
+                new LinkedHashMap<>(TEMP_MODIFIERS)
+        );
     }
 
-    public static void register(ResourceLocation id, Supplier<TempModifier> supplier)
+    public static synchronized void register(
+            Identifier id,
+            Supplier<? extends TempModifier> supplier
+    )
     {
-        TempModifierHolder holder = new TempModifierHolder(supplier, id);
-        if (TEMP_MODIFIERS.containsKey(id) || TEMP_MODIFIERS.values().stream().anyMatch(holder::equals))
+        if (id == null)
         {
-            throw ColdSweat.LOGGER.throwing(new RegistryFailureException(id, "TempModifier", String.format("Found duplicate TempModifier entries: %s (%s) %s (%s)", holder.getModifierClass().getName(), id,
-                                                                           TEMP_MODIFIERS.get(id).getModifierClass().getName(), id), null));
+            throw new IllegalArgumentException("TempModifier id cannot be null");
         }
+        if (supplier == null)
+        {
+            throw new IllegalArgumentException(
+                    "TempModifier supplier cannot be null for " + id
+            );
+        }
+
+        TempModifierHolder holder = new TempModifierHolder(supplier, id);
+
+        if (TEMP_MODIFIERS.containsKey(id))
+        {
+            throw new IllegalStateException(
+                    "Duplicate TempModifier id: " + id
+            );
+        }
+
+        for (TempModifierHolder existing : TEMP_MODIFIERS.values())
+        {
+            if (existing.getModifierClass() == holder.getModifierClass())
+            {
+                throw new IllegalStateException(
+                        "TempModifier class "
+                                + holder.getModifierClass().getName()
+                                + " is already registered as "
+                                + existing.getId()
+                );
+            }
+        }
+
         TEMP_MODIFIERS.put(id, holder);
     }
 
-    /**
-     * Clears the registry of all items. This effectively "un-registers" all TempModifiers.
-     */
-    public static void flush()
+    public static synchronized void flush()
     {
         TEMP_MODIFIERS.clear();
     }
 
-    /**
-     * Returns a new instance of the TempModifier with the given ID.<br>
-     * If a TempModifier with this ID is not in the registry, this method returns null and logs an error.<br>
-     */
-    public static Optional<TempModifier> getValue(ResourceLocation id)
+    public static Optional<TempModifier> getValue(Identifier id)
     {
-        return Optional.ofNullable(TEMP_MODIFIERS.get(id)).map(TempModifierHolder::get);
+        TempModifierHolder holder = TEMP_MODIFIERS.get(id);
+        return holder != null
+                ? Optional.of(holder.get())
+                : Optional.empty();
     }
 
-    public static ResourceLocation getKey(TempModifier modifier)
-    {   return CSMath.getIfNotNull(getHolder(modifier), TempModifierHolder::getId, null);
+    public static Identifier getKey(TempModifier modifier)
+    {
+        TempModifierHolder holder = getHolder(modifier);
+        return holder != null ? holder.getId() : null;
     }
 
-    public static boolean containsKey(ResourceLocation id)
-    {   return TEMP_MODIFIERS.containsKey(id);
+    public static boolean containsKey(Identifier id)
+    {
+        return TEMP_MODIFIERS.containsKey(id);
     }
 
-    @Nullable
     public static TempModifierHolder getHolder(TempModifier modifier)
     {
+        if (modifier == null)
+        {
+            return null;
+        }
+
         for (TempModifierHolder holder : TEMP_MODIFIERS.values())
         {
             if (holder.getModifierClass() == modifier.getClass())
-            {   return holder;
+            {
+                return holder;
             }
         }
         return null;
     }
 
-    public static class TempModifierHolder
+    public static final class TempModifierHolder
     {
-        private final Supplier<TempModifier> supplier;
-        private final Class<? extends TempModifier> clazz;
-        private final ResourceLocation id;
+        private final Supplier<? extends TempModifier> supplier;
+        private final Class<? extends TempModifier> modifierClass;
+        private final Identifier id;
 
-        public TempModifierHolder(Supplier<TempModifier> supplier, ResourceLocation id)
-        {   this.supplier = supplier;
-            this.clazz = supplier.get().getClass();
+        private TempModifierHolder(
+                Supplier<? extends TempModifier> supplier,
+                Identifier id
+        )
+        {
+            this.supplier = supplier;
+
+            TempModifier probe = supplier.get();
+            if (probe == null)
+            {
+                throw new IllegalStateException(
+                        "TempModifier supplier returned null for " + id
+                );
+            }
+
+            this.modifierClass = probe.getClass();
             this.id = id;
         }
 
         public TempModifier get()
-        {   return supplier.get();
+        {
+            TempModifier modifier = supplier.get();
+            if (modifier == null)
+            {
+                throw new IllegalStateException(
+                        "TempModifier supplier returned null for " + id
+                );
+            }
+            return modifier;
         }
 
         public Class<? extends TempModifier> getModifierClass()
-        {   return clazz;
-        }
-
-        public ResourceLocation getId()
-        {   return id;
-        }
-
-        @Override
-        public boolean equals(Object obj)
         {
-            return obj instanceof TempModifierHolder holder && holder.clazz == clazz;
+            return modifierClass;
+        }
+
+        public Identifier getId()
+        {
+            return id;
         }
 
         @Override
         public String toString()
-        {   return "TempModifierHolder{" + clazz.getName() + "}";
+        {
+            return "TempModifierHolder{"
+                    + modifierClass.getName()
+                    + " -> "
+                    + id
+                    + "}";
         }
+    }
+
+    private TempModifierRegistry()
+    {
     }
 }
