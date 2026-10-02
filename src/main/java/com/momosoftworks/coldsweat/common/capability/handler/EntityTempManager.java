@@ -4,6 +4,7 @@ import com.momosoftworks.coldsweat.api.util.Temperature;
 import com.momosoftworks.coldsweat.common.capability.temperature.TemperatureData;
 import com.momosoftworks.coldsweat.core.init.ModDataAttachments;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.Entity;
@@ -60,19 +61,11 @@ public final class EntityTempManager
         return entity instanceof LivingEntity && isTemperatureEnabled(entity.getType());
     }
 
-    /**
-     * Allows later config/content initialization to opt additional living
-     * entity types into Cold Sweat temperature state.
-     */
     public static void enableTemperatureFor(EntityType<? extends LivingEntity> type)
     {
         TEMPERATURE_ENABLED_ENTITIES.add(type);
     }
 
-    /**
-     * Returns the entity's Fabric-backed temperature data, creating the
-     * attachment's default immutable value when required.
-     */
     public static Optional<TemperatureData> getTemperatureData(Entity entity)
     {
         if (!(entity instanceof LivingEntity living) || !isTemperatureEnabled(living))
@@ -83,9 +76,6 @@ public final class EntityTempManager
         return Optional.of(living.getAttachedOrCreate(ModDataAttachments.ENTITY_TEMPERATURE));
     }
 
-    /**
-     * Replaces the complete immutable temperature state for an enabled entity.
-     */
     public static boolean setTemperatureData(LivingEntity entity, TemperatureData data)
     {
         if (!isTemperatureEnabled(entity))
@@ -97,14 +87,33 @@ public final class EntityTempManager
         return true;
     }
 
+    /**
+     * Preserve Cold Sweat temperature state when Minecraft replaces a live
+     * ServerPlayer (for example, returning from the End).
+     *
+     * Fabric's COPY_FROM callback passes alive=false for death respawns, so
+     * those intentionally receive fresh/default temperature data. This matches
+     * upstream Cold Sweat's NeoForge Clone behavior, which only copies the
+     * temperature capability when the clone was not caused by death.
+     */
+    private static void registerPlayerLifecycle()
+    {
+        ServerPlayerEvents.COPY_FROM.register((oldPlayer, newPlayer, alive) ->
+        {
+            if (!alive)
+            {
+                return;
+            }
+
+            getTemperatureData(oldPlayer).ifPresent(data ->
+                    setTemperatureData(newPlayer, data)
+            );
+        });
+    }
+
     @SuppressWarnings("unchecked")
     private static void registerPlayerType()
     {
-        /*
-         * Minecraft 26.2's published mappings no longer expose EntityType.PLAYER
-         * in the compile surface used by this Fabric workspace. Resolve the
-         * canonical minecraft:player type from the built-in registry instead.
-         */
         for (EntityType<?> type : BuiltInRegistries.ENTITY_TYPE)
         {
             if (PLAYER_TYPE_ID.equals(BuiltInRegistries.ENTITY_TYPE.getKey(type)))
@@ -120,9 +129,10 @@ public final class EntityTempManager
     public static void initialize()
     {
         registerPlayerType();
+        registerPlayerLifecycle();
 
         ColdSweatFabric.LOGGER.info(
-                "Initializing Cold Sweat entity temperature manager with {} enabled entity type(s).",
+                "Initializing Cold Sweat entity temperature manager with {} enabled entity type(s) and player lifecycle hooks.",
                 TEMPERATURE_ENABLED_ENTITIES.size()
         );
     }
