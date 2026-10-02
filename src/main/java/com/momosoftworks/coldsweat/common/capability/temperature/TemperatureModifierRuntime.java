@@ -1,6 +1,7 @@
 package com.momosoftworks.coldsweat.common.capability.temperature;
 
 import com.momosoftworks.coldsweat.api.registry.TempModifierRegistry;
+import com.momosoftworks.coldsweat.api.temperature.modifier.FreezingTempModifier;
 import com.momosoftworks.coldsweat.api.temperature.modifier.TempModifier;
 import com.momosoftworks.coldsweat.api.temperature.modifier.WaterTempModifier;
 import com.momosoftworks.coldsweat.api.util.Temperature;
@@ -24,6 +25,9 @@ import java.util.Map;
 public final class TemperatureModifierRuntime
 {
     private static final Map<LivingEntity, List<TempModifier>> WORLD_MODIFIERS =
+            new IdentityHashMap<>();
+
+    private static final Map<LivingEntity, List<TempModifier>> BASE_MODIFIERS =
             new IdentityHashMap<>();
 
     private static boolean initialized;
@@ -94,11 +98,17 @@ public final class TemperatureModifierRuntime
         }
 
         WORLD_MODIFIERS.put(entity, modifiers);
+        BASE_MODIFIERS.put(entity, new ArrayList<>());
     }
 
     public static List<TempModifier> getWorldModifiers(LivingEntity entity)
     {
         return WORLD_MODIFIERS.getOrDefault(entity, List.of());
+    }
+
+    public static List<TempModifier> getBaseModifiers(LivingEntity entity)
+    {
+        return BASE_MODIFIERS.getOrDefault(entity, List.of());
     }
 
     private static TempModifier createRegistered(String path)
@@ -127,6 +137,7 @@ public final class TemperatureModifierRuntime
             }
 
             updateWaterExposure(entity);
+            updateFreezingExposure(entity);
             tickWorldTemperature(entity);
         }
     }
@@ -180,6 +191,64 @@ public final class TemperatureModifierRuntime
         modifiers.add(water);
     }
 
+    /**
+     * Upstream adds FreezingTempModifier dynamically to BASE while vanilla's
+     * freezing state is active. The modifier reads vanilla frozen ticks and
+     * expires itself once the entity thaws.
+     */
+    private static void updateFreezingExposure(LivingEntity entity)
+    {
+        if (!(entity instanceof Player player)
+                || player.isSpectator()
+                || player.tickCount % 5 != 0
+                || !player.isFreezing())
+        {
+            return;
+        }
+
+        List<TempModifier> modifiers =
+                BASE_MODIFIERS.get(entity);
+
+        if (modifiers == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < modifiers.size(); i++)
+        {
+            TempModifier modifier = modifiers.get(i);
+
+            if (modifier instanceof FreezingTempModifier)
+            {
+                modifier.onRemoved(
+                        entity,
+                        Temperature.Trait.BASE
+                );
+
+                TempModifier replacement =
+                        createRegistered("freezing");
+
+                replacement.onAdded(
+                        entity,
+                        Temperature.Trait.BASE
+                );
+
+                modifiers.set(i, replacement);
+                return;
+            }
+        }
+
+        TempModifier freezing =
+                createRegistered("freezing");
+
+        freezing.onAdded(
+                entity,
+                Temperature.Trait.BASE
+        );
+
+        modifiers.add(freezing);
+    }
+
     private static void tickWorldTemperature(LivingEntity entity)
     {
         List<TempModifier> modifiers = WORLD_MODIFIERS.get(entity);
@@ -207,7 +276,23 @@ public final class TemperatureModifierRuntime
                 worldTemperature
         );
 
-        tickModifierLifecycle(entity, modifiers);
+        tickModifierLifecycle(
+                entity,
+                Temperature.Trait.WORLD,
+                modifiers
+        );
+
+        List<TempModifier> baseModifiers =
+                BASE_MODIFIERS.get(entity);
+
+        if (baseModifiers != null)
+        {
+            tickModifierLifecycle(
+                    entity,
+                    Temperature.Trait.BASE,
+                    baseModifiers
+            );
+        }
     }
 
     /**
@@ -228,11 +313,25 @@ public final class TemperatureModifierRuntime
                         Temperature.Trait.CORE
                 );
 
+        List<TempModifier> baseModifiers =
+                BASE_MODIFIERS.getOrDefault(
+                        entity,
+                        List.of()
+                );
+
+        double modifiedBaseTemperature =
+                Temperature.apply(
+                        0.0,
+                        entity,
+                        Temperature.Trait.BASE,
+                        baseModifiers
+                );
+
         double baseTemperature =
                 EntityTempManager.resolveAttributeValue(
                         entity,
                         Temperature.Trait.BASE,
-                        0.0
+                        modifiedBaseTemperature
                 );
 
         double freezingPoint =
@@ -411,6 +510,7 @@ public final class TemperatureModifierRuntime
 
     private static void tickModifierLifecycle(
             LivingEntity entity,
+            Temperature.Trait trait,
             List<TempModifier> modifiers
     )
     {
@@ -433,7 +533,7 @@ public final class TemperatureModifierRuntime
             {
                 modifier.onRemoved(
                         entity,
-                        Temperature.Trait.WORLD
+                        trait
                 );
                 modifiers.remove(i);
                 i--;
@@ -443,15 +543,32 @@ public final class TemperatureModifierRuntime
 
     private static void removeEntity(LivingEntity entity)
     {
-        List<TempModifier> removed = WORLD_MODIFIERS.remove(entity);
-        if (removed == null)
+        List<TempModifier> worldRemoved =
+                WORLD_MODIFIERS.remove(entity);
+
+        if (worldRemoved != null)
         {
-            return;
+            for (TempModifier modifier : worldRemoved)
+            {
+                modifier.onRemoved(
+                        entity,
+                        Temperature.Trait.WORLD
+                );
+            }
         }
 
-        for (TempModifier modifier : removed)
+        List<TempModifier> baseRemoved =
+                BASE_MODIFIERS.remove(entity);
+
+        if (baseRemoved != null)
         {
-            modifier.onRemoved(entity, Temperature.Trait.WORLD);
+            for (TempModifier modifier : baseRemoved)
+            {
+                modifier.onRemoved(
+                        entity,
+                        Temperature.Trait.BASE
+                );
+            }
         }
     }
 

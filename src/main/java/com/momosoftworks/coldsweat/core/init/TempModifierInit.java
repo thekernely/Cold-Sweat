@@ -5,6 +5,7 @@ import com.momosoftworks.coldsweat.api.temperature.modifier.BiomeTempModifier;
 import com.momosoftworks.coldsweat.api.temperature.modifier.CaveBiomeTempModifier;
 import com.momosoftworks.coldsweat.api.temperature.modifier.BlockTempModifier;
 import com.momosoftworks.coldsweat.api.temperature.modifier.ElevationTempModifier;
+import com.momosoftworks.coldsweat.api.temperature.modifier.FreezingTempModifier;
 import com.momosoftworks.coldsweat.api.temperature.modifier.ShadeTempModifier;
 import com.momosoftworks.coldsweat.api.temperature.modifier.WaterTempModifier;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
@@ -41,6 +42,10 @@ public final class TempModifierInit
         TempModifierRegistry.register(
                 ColdSweatFabric.id("water"),
                 WaterTempModifier::new
+        );
+        TempModifierRegistry.register(
+                ColdSweatFabric.id("freezing"),
+                FreezingTempModifier::new
         );
 
         ColdSweatFabric.LOGGER.info(
