@@ -5,18 +5,34 @@ import net.minecraft.world.entity.LivingEntity;
 
 import java.util.function.Function;
 
-public class WaterskinTempModifier extends TempModifier
+/**
+ * Gradual CORE-temperature effect applied after drinking a filled waterskin.
+ */
+public final class WaterskinTempModifier extends TempModifier
 {
+    private final double temperature;
+
     public WaterskinTempModifier()
-    {   this(0.0);
+    {
+        this(0.0);
     }
 
-    public WaterskinTempModifier(double temp)
-    {   this.getNBT().putDouble("Temperature", temp);
+    public WaterskinTempModifier(double temperature)
+    {
+        this.temperature = temperature;
+    }
+
+    public double getTemperature()
+    {
+        return temperature;
     }
 
     @Override
-    public Function<Double, Double>  calculate(LivingEntity entity, Temperature.Trait trait)
-    {   return temp -> temp + this.getNBT().getDouble("Temperature");
+    protected Function<Double, Double> calculate(
+            LivingEntity entity,
+            Temperature.Trait trait
+    )
+    {
+        return value -> value + temperature;
     }
 }

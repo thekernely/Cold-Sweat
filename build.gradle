@@ -84,8 +84,6 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/api/event/common/temperautre/TemperatureChangedEvent.java'
 
             // M5.1: insulation value model and adaptive armor state foundation.
-            // Keep this slice explicit: api/insulation/slot and higher insulation systems
-            // still depend on configuration/utilities that belong to later M5 overlays.
             include 'com/momosoftworks/coldsweat/api/insulation/Insulation.java'
             include 'com/momosoftworks/coldsweat/api/insulation/StaticInsulation.java'
             include 'com/momosoftworks/coldsweat/api/insulation/AdaptiveInsulation.java'
@@ -107,6 +105,12 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/api/temperature/modifier/FoodTempModifier.java'
             include 'com/momosoftworks/coldsweat/api/temperature/modifier/SoulSproutTempModifier.java'
             include 'com/momosoftworks/coldsweat/common/item/SoulSproutItem.java'
+
+            // M5.7: waterskin item runtime, gradual CORE effect, and thermometer.
+            include 'com/momosoftworks/coldsweat/api/temperature/modifier/WaterskinTempModifier.java'
+            include 'com/momosoftworks/coldsweat/common/item/WaterskinItem.java'
+            include 'com/momosoftworks/coldsweat/common/item/FilledWaterskinItem.java'
+            include 'com/momosoftworks/coldsweat/common/item/ThermometerItem.java'
         }
 
         resources {

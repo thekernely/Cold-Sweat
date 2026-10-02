@@ -1,14 +1,22 @@
 package com.momosoftworks.coldsweat.core.init;
 
+import com.momosoftworks.coldsweat.common.item.FilledWaterskinItem;
 import com.momosoftworks.coldsweat.common.item.SoulSproutItem;
+import com.momosoftworks.coldsweat.common.item.ThermometerItem;
+import com.momosoftworks.coldsweat.common.item.WaterskinItem;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
 import net.minecraft.core.Registry;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemUseAnimation;
+import net.minecraft.world.item.Rarity;
+import net.minecraft.world.item.component.Consumable;
 import net.minecraft.world.item.component.Consumables;
 import net.minecraft.world.item.equipment.ArmorType;
 
@@ -21,6 +29,38 @@ public final class ModItems
     public static final Item CHAMELEON_MOLT = registerSimple("chameleon_molt");
 
     public static final Item SOUL_SPROUT = registerSoulSprout();
+
+    public static final Item WATERSKIN = register(
+            "waterskin",
+            WaterskinItem::new,
+            new Item.Properties().stacksTo(16)
+    );
+
+    public static final Item FILLED_WATERSKIN = register(
+            "filled_waterskin",
+            FilledWaterskinItem::new,
+            new Item.Properties()
+                    .stacksTo(1)
+                    .craftRemainder(WATERSKIN)
+                    .component(ModItemComponents.WATER_TEMPERATURE, 0.0)
+                    .component(
+                            DataComponents.CONSUMABLE,
+                            Consumable.builder()
+                                    .consumeSeconds(1.6F)
+                                    .animation(ItemUseAnimation.DRINK)
+                                    .sound(SoundEvents.GENERIC_DRINK)
+                                    .hasConsumeParticles(false)
+                                    .build()
+                    )
+    );
+
+    public static final Item THERMOMETER = register(
+            "thermometer",
+            ThermometerItem::new,
+            new Item.Properties()
+                    .rarity(Rarity.UNCOMMON)
+                    .stacksTo(1)
+    );
 
     /*
      * Minecraft 26.2 defines humanoid armor through item components rather than
@@ -77,7 +117,7 @@ public final class ModItems
 
         return register(
                 "soul_sprout",
-                properties -> new SoulSproutItem(properties),
+                SoulSproutItem::new,
                 new Item.Properties().food(
                         food,
                         Consumables.defaultFood()
@@ -130,7 +170,7 @@ public final class ModItems
 
     public static void initialize()
     {
-        ColdSweatFabric.LOGGER.info("Registering Cold Sweat material, consumable, and armor items.");
+        ColdSweatFabric.LOGGER.info("Registering Cold Sweat material, consumable, utility, and armor items.");
     }
 
     private ModItems()

@@ -1,37 +1,54 @@
 package com.momosoftworks.coldsweat.common.item;
 
 import com.momosoftworks.coldsweat.api.util.Temperature;
-import com.momosoftworks.coldsweat.common.capability.handler.EntityTempManager;
-import com.momosoftworks.coldsweat.common.entity.data.Preference;
-import com.momosoftworks.coldsweat.compat.CompatManager;
-import com.momosoftworks.coldsweat.util.math.CSMath;
-import com.momosoftworks.coldsweat.util.world.WorldHelper;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 
-public class ThermometerItem extends Item
+/**
+ * Displays the player's current ambient Cold Sweat temperature.
+ *
+ * The preference/config bridge is not ported yet, so the 26.2 Fabric runtime
+ * uses Celsius as the temporary display default.
+ */
+public final class ThermometerItem extends Item
 {
     public ThermometerItem(Properties properties)
-    {   super(properties);
+    {
+        super(properties);
     }
 
     @Override
-    public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand)
-    {   // Display the ambient temperature on right-click
-        if (CompatManager.isSupplementariesLoaded() && !player.level().isClientSide)
+    public InteractionResult use(Level level, Player player, InteractionHand hand)
+    {
+        if (!level.isClientSide())
         {
-            // Get the temperature, in the player's preferred units
-            Temperature.Units units = Preference.getOrDefault(player, Preference.UNITS, Temperature.Units.F);
-            int temperature = (int) Temperature.convert(WorldHelper.getTemperatureAt(player.level(), player.blockPosition()), Temperature.Units.MC, units, true);
-            // Display the temperature to the player
-            player.displayClientMessage(Component.literal(temperature + " " + units.getFormattedName().getString()), true);
-            player.swing(hand, true);
+            double worldTemperature = Temperature.get(player, Temperature.Trait.WORLD);
+            int celsius = (int) Math.round(
+                    Temperature.convert(
+                            worldTemperature,
+                            Temperature.Units.MC,
+                            Temperature.Units.C,
+                            true
+                    )
+            );
+
+            if (player instanceof ServerPlayer serverPlayer)
+            {
+                serverPlayer.sendOverlayMessage(
+                        Component.literal(
+                                celsius + " "
+                                        + Temperature.Units.C.getFormattedName().getString()
+                        )
+                );
+            }
         }
-        return super.use(level, player, hand);
+
+        return InteractionResult.SUCCESS;
     }
 }

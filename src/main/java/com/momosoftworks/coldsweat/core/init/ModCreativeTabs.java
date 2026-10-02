@@ -24,6 +24,9 @@ public final class ModCreativeTabs
                 output.accept(ModItems.HOGLIN_HIDE);
                 output.accept(ModItems.CHAMELEON_MOLT);
                 output.accept(ModItems.SOUL_SPROUT);
+                output.accept(ModItems.WATERSKIN);
+                output.accept(ModItems.FILLED_WATERSKIN);
+                output.accept(ModItems.THERMOMETER);
 
                 output.accept(ModItems.HOGLIN_HELMET);
                 output.accept(ModItems.HOGLIN_CHESTPLATE);
