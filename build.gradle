@@ -176,6 +176,7 @@ sourceSets {
             include 'assets/cold_sweat/items/slush_bucket.json'
             include 'assets/cold_sweat/textures/item/bucket_slush.png'
             include 'assets/cold_sweat/textures/gui/overlay/body_temp_gauge.png'
+            include 'assets/cold_sweat/textures/gui/overlay/world_temp_gauge.png'
             include 'data/cold_sweat/recipe/hearth.json'
             include 'data/cold_sweat/recipe/boiler.json'
             include 'data/cold_sweat/recipe/icebox.json'

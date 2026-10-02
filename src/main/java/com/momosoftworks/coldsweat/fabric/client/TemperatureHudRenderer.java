@@ -25,6 +25,11 @@ public final class TemperatureHudRenderer
                     "textures/gui/overlay/body_temp_gauge.png"
             );
 
+    private static final Identifier WORLD_GAUGE_TEXTURE =
+            ColdSweatFabric.id(
+                    "textures/gui/overlay/world_temp_gauge.png"
+            );
+
     private static final int ICON_SIZE = 10;
     private static final int ICON_TEXTURE_HEIGHT = 90;
 
@@ -58,22 +63,6 @@ public final class TemperatureHudRenderer
 
         int centerX = graphics.guiWidth() / 2;
         int iconY = graphics.guiHeight() - 49;
-
-        int iconStage = getBodyIconStage(data.bodyStress());
-        int bob = getThreatBob(player, data.bodyStress());
-
-        graphics.blit(
-                RenderPipelines.GUI_TEXTURED,
-                BODY_GAUGE_TEXTURE,
-                centerX - ICON_SIZE / 2,
-                iconY - bob,
-                0.0F,
-                40.0F - iconStage * 10.0F,
-                ICON_SIZE,
-                ICON_SIZE,
-                ICON_SIZE,
-                ICON_TEXTURE_HEIGHT
-        );
 
         renderNumericReadouts(
                 graphics,
@@ -178,71 +167,131 @@ public final class TemperatureHudRenderer
         Font font = minecraft.font;
 
         /*
-         * Compact Homeostatic-style cluster:
+         * M7.4: two authored mini-instruments instead of two naked strings.
          *
-         *     37.0°  [Cold Sweat icon]  20.0°
+         * [body icon][37°]   [world gauge with 22° inside]
          *
-         * The icon stays at the exact screen center regardless of string
-         * widths. Numeric channels hug the icon instead of becoming two
-         * full-size HUD labels.
+         * This remains unambiguous even when both temperatures are equal.
          */
         String body = String.format(
                 Locale.ROOT,
-                "%.1f\u00B0",
+                "%.0f\u00B0",
                 data.bodyCelsius()
         );
         String environment = String.format(
                 Locale.ROOT,
-                "%.1f\u00B0",
+                "%.0f\u00B0",
                 data.environmentCelsius()
         );
 
-        final float textScale = 0.75F;
-        final int gap = 3;
+        final float textScale = 0.72F;
+        final int bodyGap = 2;
+        final int instrumentGap = 4;
+        final int worldWidth = 25;
+        final int worldHeight = 16;
 
-        int bodyWidth = font.width(body);
-        int environmentWidth = font.width(environment);
+        int bodyTextWidth = font.width(body);
+        int bodyLogicalWidth =
+                ICON_SIZE
+                        + bodyGap
+                        + Math.round(bodyTextWidth * textScale);
 
-        /*
-         * GuiGraphicsExtractor records the current pose per text element,
-         * so scaling only this compact readout does not affect the icon or
-         * any later HUD element.
-         */
+        int totalWidth =
+                bodyLogicalWidth
+                        + instrumentGap
+                        + worldWidth;
+
+        int left = centerX - totalWidth / 2;
+
+        // Re-anchor the body icon into the composite instrument.
+        int bodyIconX = left;
+        int bodyIconY = iconY;
+
+        int iconStage = getBodyIconStage(data.bodyStress());
+        int bob = getThreatBob(minecraft.player, data.bodyStress());
+
+        graphics.blit(
+                RenderPipelines.GUI_TEXTURED,
+                BODY_GAUGE_TEXTURE,
+                bodyIconX,
+                bodyIconY - bob,
+                0.0F,
+                40.0F - iconStage * 10.0F,
+                ICON_SIZE,
+                ICON_SIZE,
+                ICON_SIZE,
+                ICON_TEXTURE_HEIGHT
+        );
+
+        // Body readout - physically attached to the body icon.
         graphics.pose().pushMatrix();
         graphics.pose().scale(textScale, textScale);
 
         float inverseScale = 1.0F / textScale;
-        int scaledCenterX = Math.round(centerX * inverseScale);
-        int scaledTextY = Math.round((iconY + 1) * inverseScale);
-        int scaledHalfIcon = Math.round((ICON_SIZE / 2.0F) * inverseScale);
-        int scaledGap = Math.round(gap * inverseScale);
-
-        int bodyX =
-                scaledCenterX
-                        - scaledHalfIcon
-                        - scaledGap
-                        - bodyWidth;
-
-        int environmentX =
-                scaledCenterX
-                        + scaledHalfIcon
-                        + scaledGap;
+        int bodyTextX = Math.round(
+                (bodyIconX + ICON_SIZE + bodyGap)
+                        * inverseScale
+        );
+        int bodyTextY = Math.round(
+                (bodyIconY + 1)
+                        * inverseScale
+        );
 
         graphics.text(
                 font,
                 body,
-                bodyX,
-                scaledTextY,
+                bodyTextX,
+                bodyTextY,
                 getBodyTextColor(data.bodyStress()),
                 true
+        );
+
+        graphics.pose().popMatrix();
+
+        // Environment readout - rendered inside Cold Sweat's own world gauge.
+        int worldX =
+                left
+                        + bodyLogicalWidth
+                        + instrumentGap;
+
+        int worldY =
+                iconY
+                        - (worldHeight - ICON_SIZE) / 2;
+
+        // Neutral upstream world-gauge frame for now.
+        graphics.blit(
+                RenderPipelines.GUI_TEXTURED,
+                WORLD_GAUGE_TEXTURE,
+                worldX,
+                worldY,
+                0.0F,
+                64.0F,
+                worldWidth,
+                worldHeight,
+                worldWidth,
+                144
+        );
+
+        graphics.pose().pushMatrix();
+        graphics.pose().scale(textScale, textScale);
+
+        int envTextWidth = font.width(environment);
+        int envCenterX = worldX + worldWidth / 2;
+        int envTextX = Math.round(
+                envCenterX * inverseScale
+                        - envTextWidth / 2.0F
+        );
+        int envTextY = Math.round(
+                (worldY + 4)
+                        * inverseScale
         );
 
         graphics.text(
                 font,
                 environment,
-                environmentX,
-                scaledTextY,
-                0xFFE0E0E0,
+                envTextX,
+                envTextY,
+                0xFFE8E8E8,
                 true
         );
 
