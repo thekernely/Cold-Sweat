@@ -124,6 +124,10 @@ sourceSets {
             include 'assets/cold_sweat/lang/**'
             include 'data/c/tags/worldgen/biome/**'
             include 'data/cold_sweat/damage_type/**'
+
+            // M5.8: first-useful-release item recipes.
+            include 'data/cold_sweat/recipe/waterskin.json'
+            include 'data/cold_sweat/recipe/thermometer.json'
         }
     }
 }
