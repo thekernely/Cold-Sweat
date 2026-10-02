@@ -5,6 +5,8 @@ import com.momosoftworks.coldsweat.api.insulation.Insulation;
 import com.momosoftworks.coldsweat.api.registry.InsulationRegistry;
 import com.momosoftworks.coldsweat.api.temperature.modifier.ArmorInsulationTempModifier;
 import com.momosoftworks.coldsweat.api.util.Temperature;
+import com.momosoftworks.coldsweat.common.capability.handler.ItemInsulationManager;
+import com.momosoftworks.coldsweat.core.init.ModItemComponents;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -88,6 +90,27 @@ public final class ArmorInsulationRuntime
 
                 cold += insulation.getCold();
                 heat += insulation.getHeat();
+            }
+
+            // Sewn insulation stores adaptive state inside the armor component.
+            var sewnCap = ItemInsulationManager.getExistingInsulationCap(armorStack);
+            if (sewnCap.isPresent())
+            {
+                ItemInsulationCap adaptedCap = sewnCap.get().adapt(
+                        worldTemperature,
+                        freezingPoint,
+                        burningPoint
+                );
+                if (adaptedCap != sewnCap.get())
+                {
+                    armorStack.set(ModItemComponents.ARMOR_INSULATION, adaptedCap);
+                }
+
+                for (Insulation insulation : adaptedCap.getInsulators())
+                {
+                    cold += insulation.getCold();
+                    heat += insulation.getHeat();
+                }
             }
         }
 

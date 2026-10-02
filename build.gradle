@@ -97,6 +97,10 @@ sourceSets {
             // M5.3: built-in armor insulation registry and live RATE application.
             include 'com/momosoftworks/coldsweat/api/registry/InsulationRegistry.java'
             include 'com/momosoftworks/coldsweat/common/capability/insulation/ArmorInsulationRuntime.java'
+
+            // M5.5: persistent sewn insulation state and component manager.
+            include 'com/momosoftworks/coldsweat/common/capability/insulation/ItemInsulationCap.java'
+            include 'com/momosoftworks/coldsweat/common/capability/handler/ItemInsulationManager.java'
         }
 
         resources {

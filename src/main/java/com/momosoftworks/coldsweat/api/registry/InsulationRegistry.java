@@ -5,6 +5,7 @@ import com.momosoftworks.coldsweat.api.insulation.Insulation;
 import com.momosoftworks.coldsweat.api.insulation.StaticInsulation;
 import com.momosoftworks.coldsweat.core.init.ModItems;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -14,16 +15,17 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Loader-independent runtime registry for built-in armor insulation.
+ * Runtime insulation definition boundary for the built-in M5 defaults.
  *
- * Upstream ultimately fills this information through InsulatorData/config data.
- * That complete requirement/config graph is intentionally not pulled forward
- * just to restore armor behavior. This registry is the Fabric boundary that can
- * later be populated by the full config loader without changing the runtime.
+ * Upstream eventually populates these definitions through InsulatorData/config
+ * data. Keeping the runtime registry separate lets a later Fabric config loader
+ * replace/extend definitions without changing armor or sewn-insulation logic.
  */
 public final class InsulationRegistry
 {
     private static final Map<Item, List<Insulation>> ARMOR_INSULATION =
+            new IdentityHashMap<>();
+    private static final Map<Item, List<Insulation>> ITEM_INSULATION =
             new IdentityHashMap<>();
 
     static
@@ -49,6 +51,13 @@ public final class InsulationRegistry
         registerArmor(ModItems.CHAMELEON_CHESTPLATE, new AdaptiveInsulation(14.0, 0.0085));
         registerArmor(ModItems.CHAMELEON_LEGGINGS, new AdaptiveInsulation(12.0, 0.0085));
         registerArmor(ModItems.CHAMELEON_BOOTS, new AdaptiveInsulation(10.0, 0.0085));
+
+        // Upstream insulation ingredient defaults. Wool is tag-backed below.
+        registerItem(Items.LEATHER, new StaticInsulation(1.0, 1.0));
+        registerItem(ModItems.CHAMELEON_MOLT, new AdaptiveInsulation(2.0, 0.0085));
+        registerItem(ModItems.HOGLIN_HIDE, new StaticInsulation(0.0, 2.0));
+        registerItem(ModItems.GOAT_FUR, new StaticInsulation(2.0, 0.0));
+        registerItem(Items.RABBIT_HIDE, new StaticInsulation(0.0, 1.5));
     }
 
     public static void registerArmor(Item item, Insulation... insulation)
@@ -59,6 +68,16 @@ public final class InsulationRegistry
     public static void registerArmor(Item item, List<? extends Insulation> insulation)
     {
         ARMOR_INSULATION.put(item, List.copyOf(insulation));
+    }
+
+    public static void registerItem(Item item, Insulation... insulation)
+    {
+        ITEM_INSULATION.put(item, List.of(insulation));
+    }
+
+    public static void registerItem(Item item, List<? extends Insulation> insulation)
+    {
+        ITEM_INSULATION.put(item, List.copyOf(insulation));
     }
 
     public static List<Insulation> getArmorInsulation(ItemStack stack)
@@ -72,11 +91,31 @@ public final class InsulationRegistry
         return ARMOR_INSULATION.containsKey(stack.getItem());
     }
 
+    public static List<Insulation> getItemInsulation(ItemStack stack)
+    {
+        List<Insulation> insulation = ITEM_INSULATION.get(stack.getItem());
+        if (insulation != null)
+        {
+            return Insulation.deepCopy(insulation);
+        }
+        if (stack.is(ItemTags.WOOL))
+        {
+            return List.of(new StaticInsulation(1.5, 0.0));
+        }
+        return List.of();
+    }
+
+    public static boolean hasItemInsulation(ItemStack stack)
+    {
+        return ITEM_INSULATION.containsKey(stack.getItem()) || stack.is(ItemTags.WOOL);
+    }
+
     public static void initialize()
     {
         ColdSweatFabric.LOGGER.info(
-                "Initialized {} built-in armor insulation definition(s).",
-                ARMOR_INSULATION.size()
+                "Initialized {} built-in armor insulation definition(s) and {} direct insulation ingredient definition(s) plus #minecraft:wool.",
+                ARMOR_INSULATION.size(),
+                ITEM_INSULATION.size()
         );
     }
 
