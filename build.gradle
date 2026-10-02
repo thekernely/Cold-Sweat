@@ -27,11 +27,17 @@ sourceSets {
             // Incremental Fabric port.
             include 'com/momosoftworks/coldsweat/fabric/**'
             include 'com/momosoftworks/coldsweat/core/init/ModSounds.java'
+            include 'com/momosoftworks/coldsweat/core/init/ModParticleTypes.java'
         }
 
         resources {
-            // Keep the old NeoForge metadata/mixins out of the bootstrap runtime.
+            // Keep old NeoForge metadata/mixins out of the bootstrap runtime,
+            // while progressively restoring resources used by ported systems.
             include 'fabric.mod.json'
+            include 'assets/cold_sweat/sounds.json'
+            include 'assets/cold_sweat/sounds/**'
+            include 'assets/cold_sweat/particles/**'
+            include 'assets/cold_sweat/textures/particle/**'
         }
     }
 }

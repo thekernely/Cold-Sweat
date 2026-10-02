@@ -1,5 +1,6 @@
 package com.momosoftworks.coldsweat.fabric;
 
+import com.momosoftworks.coldsweat.core.init.ModParticleTypes;
 import com.momosoftworks.coldsweat.core.init.ModSounds;
 import net.fabricmc.api.ModInitializer;
 import net.minecraft.resources.Identifier;
@@ -22,5 +23,6 @@ public final class ColdSweatFabric implements ModInitializer
         LOGGER.info("Cold Sweat Fabric 26.2 bootstrap initialized.");
 
         ModSounds.initialize();
+        ModParticleTypes.initialize();
     }
 }
