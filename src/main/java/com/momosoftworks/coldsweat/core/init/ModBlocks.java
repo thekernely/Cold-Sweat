@@ -4,6 +4,7 @@ import com.momosoftworks.coldsweat.common.block.BoilerBlock;
 import com.momosoftworks.coldsweat.common.block.HearthBottomBlock;
 import com.momosoftworks.coldsweat.common.block.HearthTopBlock;
 import com.momosoftworks.coldsweat.common.block.IceboxBlock;
+import com.momosoftworks.coldsweat.common.block.SmokestackBlock;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -63,6 +64,16 @@ public final class ModBlocks
                     .noOcclusion()
     );
 
+    public static final SmokestackBlock SMOKESTACK = register(
+            "smokestack",
+            SmokestackBlock::new,
+            BlockBehaviour.Properties.of()
+                    .sound(SoundType.STONE)
+                    .strength(2.0F, 10.0F)
+                    .requiresCorrectToolForDrops()
+                    .noOcclusion()
+    );
+
     private static <T extends Block> T register(
             String path,
             Function<BlockBehaviour.Properties, T> factory,
@@ -77,7 +88,7 @@ public final class ModBlocks
 
     public static void initialize()
     {
-        ColdSweatFabric.LOGGER.info("Registering Cold Sweat Hearth, Boiler, and Icebox blocks.");
+        ColdSweatFabric.LOGGER.info("Registering Cold Sweat Hearth, Boiler, Icebox, and Smokestack blocks.");
     }
 
     private ModBlocks()

@@ -2,10 +2,12 @@ package com.momosoftworks.coldsweat.common.blockentity;
 
 import com.momosoftworks.coldsweat.api.registry.ThermalFuelRegistry;
 import com.momosoftworks.coldsweat.api.util.Temperature;
+import com.momosoftworks.coldsweat.common.block.SmokestackBlock;
 import com.momosoftworks.coldsweat.common.capability.handler.EntityTempManager;
 import com.momosoftworks.coldsweat.common.capability.temperature.TemperatureRuntime;
 import com.momosoftworks.coldsweat.core.init.ModBlockEntities;
 import com.momosoftworks.coldsweat.core.init.ModEffects;
+import com.momosoftworks.coldsweat.core.init.ModBlocks;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.NonNullList;
@@ -43,6 +45,7 @@ public class HearthBlockEntity extends BlockEntity implements Container
     protected static final int FUEL_INTERVAL = 40;
     protected static final int EFFECT_INTERVAL = 20;
     protected static final int THERMAL_RANGE = 16;
+    protected static final int MAX_THERMAL_RANGE = 96;
     protected static final int WARM_UP_TIME = 1200;
     protected static final int SPREAD_REBUILD_INTERVAL = 40;
     protected static final int MAX_SPREAD_VOLUME = 4096;
@@ -241,29 +244,34 @@ public class HearthBlockEntity extends BlockEntity implements Container
     {
         spreadPositions.clear();
 
-        BlockPos source = getBlockPos().above();
+        BlockPos source = getSpreadOrigin(level);
         if (!level.isLoaded(source))
         {
             return;
         }
 
-        ArrayDeque<BlockPos> open = new ArrayDeque<>();
+        ArrayDeque<SpreadNode> open = new ArrayDeque<>();
         Set<BlockPos> visited = new HashSet<>();
 
-        if (canSpreadThrough(level, source)
-                && !level.canSeeSky(source))
+        if (canOccupySpreadPosition(level, source)
+                && (isTransferMedium(level, source)
+                    || !level.canSeeSky(source)))
         {
-            open.add(source);
+            open.add(new SpreadNode(source, source));
             visited.add(source);
         }
 
         while (!open.isEmpty()
                 && spreadPositions.size() < MAX_SPREAD_VOLUME)
         {
-            BlockPos current = open.removeFirst();
+            SpreadNode node = open.removeFirst();
+            BlockPos current = node.pos();
+            boolean currentTransfer =
+                    isTransferMedium(level, current);
 
-            if (!withinSpreadRange(source, current)
-                    || level.canSeeSky(current))
+            if (!withinGlobalRange(current)
+                    || (!currentTransfer
+                        && level.canSeeSky(current)))
             {
                 continue;
             }
@@ -274,15 +282,138 @@ public class HearthBlockEntity extends BlockEntity implements Container
             {
                 BlockPos next = current.relative(direction);
 
-                if (visited.add(next)
-                        && withinSpreadRange(source, next)
-                        && level.isLoaded(next)
-                        && canSpreadThrough(level, next))
+                if (!visited.add(next)
+                        || !level.isLoaded(next)
+                        || !withinGlobalRange(next)
+                        || !canTraverse(
+                                level,
+                                current,
+                                next,
+                                direction
+                        ))
                 {
-                    open.addLast(next);
+                    continue;
                 }
+
+                boolean nextTransfer =
+                        isTransferMedium(level, next);
+
+                BlockPos localOrigin =
+                        nextTransfer
+                                ? next
+                                : node.origin();
+
+                if (!nextTransfer
+                        && !withinLocalRange(
+                                localOrigin,
+                                next
+                        ))
+                {
+                    continue;
+                }
+
+                open.addLast(
+                        new SpreadNode(
+                                next,
+                                localOrigin
+                        )
+                );
             }
         }
+    }
+
+    private BlockPos getSpreadOrigin(Level level)
+    {
+        BlockPos source = getBlockPos().above();
+
+        /*
+         * A completed Hearth is two blocks tall. The thermal outlet sits above
+         * the upper half, while Boiler/Icebox emit from the block above them.
+         */
+        if (level.getBlockState(source).is(ModBlocks.HEARTH_TOP))
+        {
+            source = source.above();
+        }
+
+        return source;
+    }
+
+    private boolean withinGlobalRange(BlockPos target)
+    {
+        BlockPos machine = getBlockPos();
+
+        return Math.abs(target.getX() - machine.getX())
+                        <= MAX_THERMAL_RANGE
+                && Math.abs(target.getY() - machine.getY())
+                        <= MAX_THERMAL_RANGE
+                && Math.abs(target.getZ() - machine.getZ())
+                        <= MAX_THERMAL_RANGE;
+    }
+
+    private static boolean withinLocalRange(
+            BlockPos origin,
+            BlockPos target
+    )
+    {
+        return Math.abs(target.getX() - origin.getX())
+                        <= THERMAL_RANGE
+                && Math.abs(target.getY() - origin.getY())
+                        <= THERMAL_RANGE
+                && Math.abs(target.getZ() - origin.getZ())
+                        <= THERMAL_RANGE;
+    }
+
+    private static boolean canTraverse(
+            Level level,
+            BlockPos current,
+            BlockPos next,
+            Direction direction
+    )
+    {
+        BlockState currentState =
+                level.getBlockState(current);
+        BlockState nextState =
+                level.getBlockState(next);
+
+        if (currentState.getBlock()
+                instanceof SmokestackBlock
+                && !SmokestackBlock.allowsDirection(
+                        currentState,
+                        direction
+                ))
+        {
+            return false;
+        }
+
+        if (nextState.getBlock()
+                instanceof SmokestackBlock
+                && !SmokestackBlock.allowsDirection(
+                        nextState,
+                        direction
+                ))
+        {
+            return false;
+        }
+
+        return canOccupySpreadPosition(level, next);
+    }
+
+    private static boolean canOccupySpreadPosition(
+            Level level,
+            BlockPos pos
+    )
+    {
+        return isTransferMedium(level, pos)
+                || canSpreadThrough(level, pos);
+    }
+
+    private static boolean isTransferMedium(
+            Level level,
+            BlockPos pos
+    )
+    {
+        return level.getBlockState(pos).getBlock()
+                instanceof SmokestackBlock;
     }
 
     private static boolean canSpreadThrough(
@@ -290,25 +421,18 @@ public class HearthBlockEntity extends BlockEntity implements Container
             BlockPos pos
     )
     {
-        var state = level.getBlockState(pos);
+        BlockState state = level.getBlockState(pos);
 
         return state.isAir()
                 || !state.getFluidState().isEmpty()
                 || state.getCollisionShape(level, pos).isEmpty();
     }
 
-    private static boolean withinSpreadRange(
-            BlockPos source,
-            BlockPos target
+    private record SpreadNode(
+            BlockPos pos,
+            BlockPos origin
     )
     {
-        int dx = target.getX() - source.getX();
-        int dy = target.getY() - source.getY();
-        int dz = target.getZ() - source.getZ();
-
-        return Math.abs(dx) <= THERMAL_RANGE
-                && Math.abs(dy) <= THERMAL_RANGE
-                && Math.abs(dz) <= THERMAL_RANGE;
     }
 
     protected int getThermalEffectAmplifier(int maxStrength)

@@ -74,6 +74,10 @@ public final class ModItems
             "icebox", ModBlocks.ICEBOX, new Item.Properties()
     );
 
+    public static final Item SMOKESTACK = registerBlockItem(
+            "smokestack", ModBlocks.SMOKESTACK, new Item.Properties()
+    );
+
     /*
      * Minecraft 26.2 defines humanoid armor through item components rather than
      * the old ArmorItem subclass constructor. These registrations preserve the
