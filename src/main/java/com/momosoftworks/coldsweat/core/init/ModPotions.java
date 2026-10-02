@@ -1,18 +1,45 @@
 package com.momosoftworks.coldsweat.core.init;
 
-import net.minecraft.core.registries.Registries;
+import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
+import net.minecraft.core.Holder;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.item.alchemy.Potion;
-import com.momosoftworks.coldsweat.ColdSweat;
-import net.neoforged.neoforge.registries.DeferredHolder;
-import net.neoforged.neoforge.registries.DeferredRegister;
 
-public class ModPotions
+public final class ModPotions
 {
-    public static final DeferredRegister<Potion> POTIONS = DeferredRegister.create(Registries.POTION, ColdSweat.MOD_ID);
+    public static final Holder<Potion> ICE_RESISTANCE = register(
+            "ice_resistance",
+            new Potion(
+                    "ice_resistance",
+                    new MobEffectInstance(ModEffects.ICE_RESISTANCE, 3600)
+            )
+    );
 
-    public static final DeferredHolder<Potion, Potion> ICE_RESISTANCE = POTIONS.register("ice_resistance", () ->
-            new Potion(new MobEffectInstance(ModEffects.ICE_RESISTANCE, 3600)));
-    public static final DeferredHolder<Potion, Potion> LONG_ICE_RESISTANCE = POTIONS.register("long_ice_resistance", () ->
-            new Potion("ice_resistance", new MobEffectInstance(ModEffects.ICE_RESISTANCE, 7200)));
+    public static final Holder<Potion> LONG_ICE_RESISTANCE = register(
+            "long_ice_resistance",
+            new Potion(
+                    "ice_resistance",
+                    new MobEffectInstance(ModEffects.ICE_RESISTANCE, 7200)
+            )
+    );
+
+    private static Holder<Potion> register(String path, Potion potion)
+    {
+        return Registry.registerForHolder(
+                BuiltInRegistries.POTION,
+                ColdSweatFabric.id(path),
+                potion
+        );
+    }
+
+    public static void initialize()
+    {
+        ColdSweatFabric.LOGGER.info("Registering Cold Sweat potions.");
+    }
+
+    private ModPotions()
+    {
+    }
 }
