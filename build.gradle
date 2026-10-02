@@ -140,6 +140,27 @@ sourceSets {
             include 'data/c/tags/worldgen/biome/**'
             include 'data/cold_sweat/damage_type/**'
 
+            // M6.7: thermal-machine blockstates, models, and textures.
+            include 'assets/cold_sweat/blockstates/hearth_bottom.json'
+            include 'assets/cold_sweat/blockstates/hearth_top.json'
+            include 'assets/cold_sweat/blockstates/boiler.json'
+            include 'assets/cold_sweat/blockstates/icebox.json'
+            include 'assets/cold_sweat/blockstates/smokestack.json'
+            include 'assets/cold_sweat/models/block/hearth_bottom.json'
+            include 'assets/cold_sweat/models/block/hearth_top.json'
+            include 'assets/cold_sweat/models/block/generic_smokestack.json'
+            include 'assets/cold_sweat/models/block/smokestack.json'
+            include 'assets/cold_sweat/models/block/boiler.json'
+            include 'assets/cold_sweat/models/block/boiler_lit.json'
+            include 'assets/cold_sweat/models/block/icebox.json'
+            include 'assets/cold_sweat/models/block/icebox_frosted.json'
+            include 'assets/cold_sweat/models/block/icebox_smokestack.json'
+            include 'assets/cold_sweat/models/block/icebox_frosted_smokestack.json'
+            include 'assets/cold_sweat/textures/block/boiler*.png'
+            include 'assets/cold_sweat/textures/block/hearth*.png'
+            include 'assets/cold_sweat/textures/block/icebox*.png'
+            include 'assets/cold_sweat/textures/block/smokestack*.png'
+
             // M5.8: first-useful-release item recipes.
             include 'data/cold_sweat/recipe/waterskin.json'
             include 'data/cold_sweat/recipe/thermometer.json'

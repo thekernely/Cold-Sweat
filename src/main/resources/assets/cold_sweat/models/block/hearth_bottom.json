@@ -1,36 +1,7 @@
 {
-	"texture_size": [64, 64],
-	"textures": {
-		"particle": "cold_sweat:block/hearth_particle"
-	},
-	"elements": [
-		{
-			"name": "Grate",
-			"from": [3, 2, -1],
-			"to": [13, 9, 0],
-			"rotation": {"angle": 0, "axis": "y", "origin": [13, 6, 0]},
-			"faces": {
-				"north": {"uv": [0, 0, 10, 7], "texture": "#hearth_grate", "cullface": "north"},
-				"east": {"uv": [0, 0, 1, 7], "texture": "#hearth_grate", "cullface": "north"},
-				"west": {"uv": [10, 0, 9, 7], "texture": "#hearth_grate", "cullface": "north"},
-				"up": {"uv": [0, 0, 10, 1], "rotation": 180, "texture": "#hearth_grate", "cullface": "north"},
-				"down": {"uv": [0, 6, 10, 7], "rotation": 180, "texture": "#hearth_grate", "cullface": "north"}
-			}
-		},
-		{
-			"name": "Body",
-			"from": [0, 0, 0],
-			"to": [16, 16, 16],
-			"rotation": {"angle": 0, "axis": "y", "origin": [16, 0, 15]},
-			"faces": {
-				"north": {"uv": [0, 0, 16, 16], "texture": "#4", "cullface": "north"},
-				"east": {"uv": [0, 0, 16, 16], "texture": "#right", "cullface": "east"},
-				"south": {"uv": [0, 0, 16, 16], "texture": "#back", "cullface": "south"},
-				"west": {"uv": [0, 0, 16, 16], "texture": "#left", "cullface": "west"},
-				"up": {"uv": [0, 0, 16, 16], "texture": "#3", "cullface": "up"},
-				"down": {"uv": [0, 0, 16, 16], "rotation": 180, "texture": "#bottom", "cullface": "down"}
-			}
-		}
-	],
-    "render_type": "translucent_moving_block"
+  "parent": "minecraft:block/cube_all",
+  "textures": {
+    "all": "cold_sweat:block/hearth",
+    "particle": "cold_sweat:block/hearth_particle"
+  }
 }
