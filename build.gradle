@@ -93,6 +93,10 @@ sourceSets {
             // M5.2: armor-insulation rate transform and Fabric-side strength default.
             include 'com/momosoftworks/coldsweat/api/temperature/modifier/ArmorInsulationTempModifier.java'
             include 'com/momosoftworks/coldsweat/config/InsulationSettings.java'
+
+            // M5.3: built-in armor insulation registry and live RATE application.
+            include 'com/momosoftworks/coldsweat/api/registry/InsulationRegistry.java'
+            include 'com/momosoftworks/coldsweat/common/capability/insulation/ArmorInsulationRuntime.java'
         }
 
         resources {

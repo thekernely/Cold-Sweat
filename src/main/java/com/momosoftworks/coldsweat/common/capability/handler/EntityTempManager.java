@@ -1,6 +1,7 @@
 package com.momosoftworks.coldsweat.common.capability.handler;
 
 import com.momosoftworks.coldsweat.api.util.Temperature;
+import com.momosoftworks.coldsweat.common.capability.insulation.ArmorInsulationRuntime;
 import com.momosoftworks.coldsweat.common.capability.temperature.TemperatureData;
 import com.momosoftworks.coldsweat.core.init.ModAttributes;
 import com.momosoftworks.coldsweat.core.init.ModDataAttachments;
@@ -26,11 +27,6 @@ import java.util.Set;
 
 /**
  * Fabric-side ownership boundary for Cold Sweat temperature state.
- *
- * The original NeoForge class also owns a large number of events, modifier
- * calculations, equipment hooks, and compatibility paths. Those are restored
- * incrementally. This foundation centralizes which entities have temperature
- * state and all direct access to the Fabric Data Attachment.
  */
 public final class EntityTempManager
 {
@@ -49,7 +45,8 @@ public final class EntityTempManager
                     .filter(Temperature.Trait::isForAttributes)
                     .toArray(Temperature.Trait[]::new);
 
-    private static final Identifier PLAYER_TYPE_ID = Identifier.withDefaultNamespace("player");
+    private static final Identifier PLAYER_TYPE_ID =
+            Identifier.withDefaultNamespace("player");
 
     private static final Set<EntityType<? extends LivingEntity>> TEMPERATURE_ENABLED_ENTITIES =
             new LinkedHashSet<>();
@@ -95,12 +92,6 @@ public final class EntityTempManager
         return true;
     }
 
-    /**
-     * Returns the registered Cold Sweat attribute backing a temperature trait.
-     *
-     * CORE and BODY are runtime/capability values, so they intentionally have
-     * no backing attribute.
-     */
     public static Holder<Attribute> getAttributeHolder(Temperature.Trait trait)
     {
         return switch (trait)
@@ -118,9 +109,6 @@ public final class EntityTempManager
         };
     }
 
-    /**
-     * Maps a registered Cold Sweat attribute back to its temperature trait.
-     */
     public static Temperature.Trait getTraitForAttribute(Holder<Attribute> attribute)
     {
         if (attribute == null)
@@ -140,18 +128,12 @@ public final class EntityTempManager
         return null;
     }
 
-    /**
-     * Maps a Cold Sweat temperature trait to its live attribute instance.
-     */
     public static AttributeInstance getAttribute(Temperature.Trait trait, LivingEntity entity)
     {
         Holder<Attribute> attribute = getAttributeHolder(trait);
         return attribute != null ? entity.getAttribute(attribute) : null;
     }
 
-    /**
-     * Returns every Cold Sweat attribute instance actually present on an entity.
-     */
     public static List<AttributeInstance> getAllTemperatureAttributes(LivingEntity entity)
     {
         return Arrays.stream(VALID_ATTRIBUTE_TRAITS)
@@ -162,11 +144,8 @@ public final class EntityTempManager
 
     /**
      * Resolves a temperature attribute with Cold Sweat's NaN-fallback semantics.
-     *
-     * Cold Sweat intentionally installs these attributes with NaN base values.
-     * Vanilla's cached AttributeInstance value cannot be used directly in that
-     * state, so upstream performs the operation passes manually after replacing
-     * a NaN base with the caller's configured/runtime fallback.
+     * Armor insulation is a RATE TempModifier upstream, so its Fabric runtime is
+     * applied after the attribute operations have produced the raw RATE value.
      */
     public static double resolveAttributeValue(
             LivingEntity entity,
@@ -177,7 +156,9 @@ public final class EntityTempManager
         AttributeInstance attribute = getAttribute(trait, entity);
         if (attribute == null)
         {
-            return fallbackValue;
+            return trait == Temperature.Trait.RATE
+                    ? ArmorInsulationRuntime.applyRate(entity, fallbackValue)
+                    : fallbackValue;
         }
 
         double base = attribute.getBaseValue();
@@ -212,15 +193,14 @@ public final class EntityTempManager
             }
         }
 
+        if (trait == Temperature.Trait.RATE)
+        {
+            value = ArmorInsulationRuntime.applyRate(entity, value);
+        }
+
         return value;
     }
 
-    /**
-     * Ensure enabled living entities own their Fabric temperature attachment as
-     * soon as they enter a server level. The later modifier/runtime initializer
-     * can now build on a guaranteed state object instead of relying solely on
-     * lazy reads.
-     */
     private static void registerEntityLoadLifecycle()
     {
         ServerEntityEvents.ENTITY_LOAD.register((entity, level) ->
@@ -232,15 +212,6 @@ public final class EntityTempManager
         });
     }
 
-    /**
-     * Preserve Cold Sweat temperature state when Minecraft replaces a live
-     * ServerPlayer (for example, returning from the End).
-     *
-     * Fabric's COPY_FROM callback passes alive=false for death respawns, so
-     * those intentionally receive fresh/default temperature data. This matches
-     * upstream Cold Sweat's NeoForge Clone behavior, which only copies the
-     * temperature capability when the clone was not caused by death.
-     */
     private static void registerPlayerLifecycle()
     {
         ServerPlayerEvents.COPY_FROM.register((oldPlayer, newPlayer, alive) ->
