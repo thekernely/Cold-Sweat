@@ -112,6 +112,9 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/common/item/FilledWaterskinItem.java'
             include 'com/momosoftworks/coldsweat/common/item/ThermometerItem.java'
 
+            // M6.2: built-in thermal-machine fuels and waterskin processing runtime.
+            include 'com/momosoftworks/coldsweat/api/registry/ThermalFuelRegistry.java'
+
             // M6.1: thermal-machine blocks, typed block entities, and persistent fuel state.
             include 'com/momosoftworks/coldsweat/core/init/ModBlocks.java'
             include 'com/momosoftworks/coldsweat/core/init/ModBlockEntities.java'
