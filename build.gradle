@@ -47,6 +47,9 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/data/tag/ModEntityTags.java'
             include 'com/momosoftworks/coldsweat/data/tag/ModFluidTags.java'
             include 'com/momosoftworks/coldsweat/data/tag/ModItemTags.java'
+
+            // M3: core temperature model foundation.
+            include 'com/momosoftworks/coldsweat/api/util/Temperature.java'
         }
 
         resources {
