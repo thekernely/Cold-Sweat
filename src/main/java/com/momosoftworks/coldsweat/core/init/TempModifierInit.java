@@ -1,6 +1,7 @@
 package com.momosoftworks.coldsweat.core.init;
 
 import com.momosoftworks.coldsweat.api.registry.TempModifierRegistry;
+import com.momosoftworks.coldsweat.api.temperature.modifier.ArmorInsulationTempModifier;
 import com.momosoftworks.coldsweat.api.temperature.modifier.BiomeTempModifier;
 import com.momosoftworks.coldsweat.api.temperature.modifier.CaveBiomeTempModifier;
 import com.momosoftworks.coldsweat.api.temperature.modifier.BlockTempModifier;
@@ -43,6 +44,10 @@ public final class TempModifierInit
         TempModifierRegistry.register(
                 ColdSweatFabric.id("cave_biomes"),
                 CaveBiomeTempModifier::new
+        );
+        TempModifierRegistry.register(
+                ColdSweatFabric.id("armor"),
+                ArmorInsulationTempModifier::new
         );
         TempModifierRegistry.register(
                 ColdSweatFabric.id("water"),
