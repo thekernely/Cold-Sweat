@@ -31,6 +31,7 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/core/init/ModAttributes.java'
             include 'com/momosoftworks/coldsweat/core/init/ModEffects.java'
             include 'com/momosoftworks/coldsweat/core/init/ModPotions.java'
+            include 'com/momosoftworks/coldsweat/core/init/ModArmorMaterials.java'
             include 'com/momosoftworks/coldsweat/common/effect/**'
             include 'com/momosoftworks/coldsweat/util/registries/ModGameRules.java'
 
@@ -54,8 +55,8 @@ sourceSets {
             include 'assets/cold_sweat/textures/mob_effect/**'
             include 'assets/cold_sweat/lang/**'
 
-            // Tag JSONs stay excluded until the referenced blocks/items/entities
-            // are registered, so datapack loading cannot fail on missing IDs.
+            // Tag JSONs and equipment assets stay excluded until the referenced
+            // blocks/items and armor items are registered.
         }
     }
 }
