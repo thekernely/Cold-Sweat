@@ -1,9 +1,16 @@
 package com.momosoftworks.coldsweat.common.block;
 
+import com.momosoftworks.coldsweat.api.registry.ThermalFuelRegistry;
 import com.momosoftworks.coldsweat.common.blockentity.BoilerBlockEntity;
 import com.momosoftworks.coldsweat.core.init.ModBlockEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.Containers;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -17,6 +24,7 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
+import net.minecraft.world.phys.BlockHitResult;
 
 public class BoilerBlock extends Block implements EntityBlock
 {
@@ -43,6 +51,75 @@ public class BoilerBlock extends Block implements EntityBlock
         return defaultBlockState()
                 .setValue(FACING, context.getHorizontalDirection().getOpposite())
                 .setValue(LIT, false);
+    }
+
+    @Override
+    protected InteractionResult useItemOn(
+            ItemStack stack,
+            BlockState state,
+            Level level,
+            BlockPos pos,
+            Player player,
+            InteractionHand hand,
+            BlockHitResult hit
+    )
+    {
+        int itemFuel = ThermalFuelRegistry.getBoilerFuel(stack);
+        if (itemFuel <= 0)
+        {
+            return InteractionResult.TRY_WITH_EMPTY_HAND;
+        }
+
+        if (level.getBlockEntity(pos) instanceof BoilerBlockEntity boiler
+                && !level.isClientSide()
+                && boiler.getFuel() <= boiler.getMaxFuel() - itemFuel)
+        {
+            boiler.addFuel(itemFuel);
+            consumeFuelItem(player, hand, stack);
+        }
+
+        return InteractionResult.SUCCESS;
+    }
+
+    private static void consumeFuelItem(
+            Player player,
+            InteractionHand hand,
+            ItemStack stack
+    )
+    {
+        if (player.isCreative())
+        {
+            return;
+        }
+
+        if (stack.is(Items.LAVA_BUCKET))
+        {
+            player.setItemInHand(
+                    hand,
+                    new ItemStack(Items.BUCKET)
+            );
+        }
+        else
+        {
+            stack.shrink(1);
+        }
+    }
+
+    @Override
+    public BlockState playerWillDestroy(
+            Level level,
+            BlockPos pos,
+            BlockState state,
+            Player player
+    )
+    {
+        if (!level.isClientSide()
+                && level.getBlockEntity(pos) instanceof BoilerBlockEntity boiler)
+        {
+            Containers.dropContents(level, pos, boiler);
+        }
+
+        return super.playerWillDestroy(level, pos, state, player);
     }
 
     @Override
