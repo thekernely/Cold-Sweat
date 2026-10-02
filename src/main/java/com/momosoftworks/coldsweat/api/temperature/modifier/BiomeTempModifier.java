@@ -2,19 +2,25 @@ package com.momosoftworks.coldsweat.api.temperature.modifier;
 
 import com.momosoftworks.coldsweat.api.util.Temperature;
 import com.momosoftworks.coldsweat.config.WorldTemperatureSettings;
+import com.momosoftworks.coldsweat.util.world.WorldTemperatureUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
 
+import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * First Fabric biome-temperature modifier.
+ * Fabric biome-temperature modifier.
  *
- * This restores the standalone vanilla-biome sampling path before the larger
- * Cold Sweat biome/structure override tables are brought across.
+ * Uses Cold Sweat's upstream vanilla biome ranges when configured, blended
+ * between coldest/hottest values using the world time multiplier. Biomes that
+ * are absent or explicitly disabled in the upstream table retain a vanilla
+ * base-temperature fallback until the full data/config pipeline is restored.
  */
 public class BiomeTempModifier extends TempModifier
 {
@@ -44,6 +50,9 @@ public class BiomeTempModifier extends TempModifier
         int collected = 0;
         double total = 0.0;
 
+        double timeMultiplier =
+                WorldTemperatureUtil.getTimeMultiplier(level);
+
         for (int x = 0; x < side && collected < samples; x++)
         {
             for (int z = 0; z < side && collected < samples; z++)
@@ -57,7 +66,11 @@ public class BiomeTempModifier extends TempModifier
                 );
 
                 Holder<Biome> biome = level.getBiome(samplePos);
-                total += biome.value().getBaseTemperature();
+
+                total += getBiomeTemperature(
+                        biome,
+                        timeMultiplier
+                );
                 collected++;
             }
         }
@@ -65,13 +78,41 @@ public class BiomeTempModifier extends TempModifier
         double sampledTemperature =
                 collected > 0
                         ? total / collected
-                        : level.getBiome(center).value().getBaseTemperature();
+                        : getBiomeTemperature(
+                                level.getBiome(center),
+                                timeMultiplier
+                        );
 
         double dimensionOffset =
                 WorldTemperatureSettings.getDimensionTempOffset(level);
 
         return temperature ->
                 temperature + sampledTemperature + dimensionOffset;
+    }
+
+    private static double getBiomeTemperature(
+            Holder<Biome> biome,
+            double timeMultiplier
+    )
+    {
+        Optional<Identifier> biomeId =
+                biome.unwrapKey()
+                        .map(ResourceKey::identifier);
+
+        if (biomeId.isPresent())
+        {
+            Optional<WorldTemperatureSettings.BiomeTemperatureRange> range =
+                    WorldTemperatureSettings.getBiomeTemperatureRange(
+                            biomeId.get()
+                    );
+
+            if (range.isPresent())
+            {
+                return range.get().sample(timeMultiplier);
+            }
+        }
+
+        return biome.value().getBaseTemperature();
     }
 
     public int getSamples()
