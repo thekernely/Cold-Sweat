@@ -2,11 +2,12 @@ package com.momosoftworks.coldsweat.core.advancement.trigger;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import net.minecraft.advancements.critereon.*;
+import net.minecraft.advancements.predicates.ContextAwarePredicate;
+import net.minecraft.advancements.predicates.ItemPredicate;
+import net.minecraft.advancements.triggers.SimpleCriterionTrigger;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -14,19 +15,25 @@ public class ArmorInsulatedTrigger extends SimpleCriterionTrigger<ArmorInsulated
 {
     @Override
     public Codec<Instance> codec()
-    {   return Instance.CODEC;
+    {
+        return Instance.CODEC;
     }
 
     public void trigger(ServerPlayer player, ItemStack armorStack, ItemStack insulatorStack)
-    {   this.trigger(player, triggerInstance -> triggerInstance.matches(armorStack, insulatorStack));
+    {
+        this.trigger(player, triggerInstance -> triggerInstance.matches(armorStack, insulatorStack));
     }
 
-    public record Instance(Optional<ContextAwarePredicate> player, List<ItemPredicate> armorPredicates, List<ItemPredicate> insulatorPredicates) implements SimpleInstance
+    public record Instance(
+            Optional<ContextAwarePredicate> player,
+            List<ItemPredicate> armorPredicates,
+            List<ItemPredicate> insulatorPredicates
+    ) implements SimpleCriterionTrigger.SimpleInstance
     {
         public static final Codec<Instance> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-            ContextAwarePredicate.CODEC.optionalFieldOf("player").forGetter(Instance::player),
-            ItemPredicate.CODEC.listOf().optionalFieldOf("armor_item", List.of()).forGetter(Instance::armorPredicates),
-            ItemPredicate.CODEC.listOf().optionalFieldOf("insulation_item", List.of()).forGetter(Instance::insulatorPredicates)
+                ContextAwarePredicate.CODEC.optionalFieldOf("player").forGetter(Instance::player),
+                ItemPredicate.CODEC.listOf().optionalFieldOf("armor_item", List.of()).forGetter(Instance::armorPredicates),
+                ItemPredicate.CODEC.listOf().optionalFieldOf("insulation_item", List.of()).forGetter(Instance::insulatorPredicates)
         ).apply(instance, Instance::new));
 
         public boolean matches(ItemStack armorStack, ItemStack insulatorStack)
@@ -35,17 +42,22 @@ public class ArmorInsulatedTrigger extends SimpleCriterionTrigger<ArmorInsulated
             for (ItemPredicate predicate : this.armorPredicates)
             {
                 if (predicate.test(armorStack))
-                {   armorMatches = true;
+                {
+                    armorMatches = true;
                     break;
                 }
             }
-            if (!armorMatches) return false;
+            if (!armorMatches)
+            {
+                return false;
+            }
 
             boolean insulatorMatches = this.insulatorPredicates.isEmpty();
             for (ItemPredicate predicate : this.insulatorPredicates)
             {
                 if (predicate.test(insulatorStack))
-                {   insulatorMatches = true;
+                {
+                    insulatorMatches = true;
                     break;
                 }
             }
@@ -53,4 +65,3 @@ public class ArmorInsulatedTrigger extends SimpleCriterionTrigger<ArmorInsulated
         }
     }
 }
-

@@ -2,9 +2,9 @@ package com.momosoftworks.coldsweat.core.advancement.trigger;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import net.minecraft.advancements.critereon.ContextAwarePredicate;
-import net.minecraft.advancements.critereon.ItemPredicate;
-import net.minecraft.advancements.critereon.SimpleCriterionTrigger;
+import net.minecraft.advancements.predicates.ContextAwarePredicate;
+import net.minecraft.advancements.predicates.ItemPredicate;
+import net.minecraft.advancements.triggers.SimpleCriterionTrigger;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 
@@ -15,14 +15,20 @@ public class SoulLampFueledTrigger extends SimpleCriterionTrigger<SoulLampFueled
 {
     @Override
     public Codec<Instance> codec()
-    {   return Instance.CODEC;
+    {
+        return Instance.CODEC;
     }
 
     public void trigger(ServerPlayer player, ItemStack fuelStack, ItemStack lampStack)
-    {   this.trigger(player, triggerInstance -> triggerInstance.matches(fuelStack, lampStack));
+    {
+        this.trigger(player, triggerInstance -> triggerInstance.matches(fuelStack, lampStack));
     }
 
-    public record Instance(Optional<ContextAwarePredicate> player, List<ItemPredicate> fuelPredicates, List<ItemPredicate> lampPredicates) implements SimpleInstance
+    public record Instance(
+            Optional<ContextAwarePredicate> player,
+            List<ItemPredicate> fuelPredicates,
+            List<ItemPredicate> lampPredicates
+    ) implements SimpleCriterionTrigger.SimpleInstance
     {
         public static final Codec<Instance> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 ContextAwarePredicate.CODEC.optionalFieldOf("player").forGetter(Instance::player),
@@ -36,17 +42,22 @@ public class SoulLampFueledTrigger extends SimpleCriterionTrigger<SoulLampFueled
             for (ItemPredicate predicate : this.lampPredicates)
             {
                 if (predicate.test(lampStack))
-                {   lampMatches = true;
+                {
+                    lampMatches = true;
                     break;
                 }
             }
-            if (!lampMatches) return false;
+            if (!lampMatches)
+            {
+                return false;
+            }
 
             boolean fuelMatches = this.fuelPredicates.isEmpty();
             for (ItemPredicate predicate : this.fuelPredicates)
             {
                 if (predicate.test(fuelStack))
-                {   fuelMatches = true;
+                {
+                    fuelMatches = true;
                     break;
                 }
             }

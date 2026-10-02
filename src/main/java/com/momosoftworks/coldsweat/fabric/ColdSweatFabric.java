@@ -1,5 +1,6 @@
 package com.momosoftworks.coldsweat.fabric;
 
+import com.momosoftworks.coldsweat.core.init.ModAdvancementTriggers;
 import com.momosoftworks.coldsweat.core.init.ModArmorMaterials;
 import com.momosoftworks.coldsweat.core.init.ModAttributes;
 import com.momosoftworks.coldsweat.core.init.ModEffects;
@@ -37,6 +38,7 @@ public final class ColdSweatFabric implements ModInitializer
         ModArmorMaterials.initialize();
         ModItemComponents.initialize();
         ModItems.initialize();
+        ModAdvancementTriggers.initialize();
         ModGameRules.initialize();
     }
 }

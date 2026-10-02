@@ -1,21 +1,35 @@
 package com.momosoftworks.coldsweat.core.init;
 
-import com.momosoftworks.coldsweat.ColdSweat;
 import com.momosoftworks.coldsweat.core.advancement.trigger.ArmorInsulatedTrigger;
-import com.momosoftworks.coldsweat.core.advancement.trigger.BlockAffectTempTrigger;
 import com.momosoftworks.coldsweat.core.advancement.trigger.SoulLampFueledTrigger;
-import com.momosoftworks.coldsweat.core.advancement.trigger.TemperatureChangedTrigger;
-import net.minecraft.advancements.CriterionTrigger;
-import net.minecraft.core.registries.Registries;
-import net.neoforged.neoforge.registries.DeferredHolder;
-import net.neoforged.neoforge.registries.DeferredRegister;
+import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
+import net.minecraft.advancements.triggers.CriterionTrigger;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
 
-public class ModAdvancementTriggers
+public final class ModAdvancementTriggers
 {
-    public static final DeferredRegister<CriterionTrigger<?>> TRIGGERS = DeferredRegister.create(Registries.TRIGGER_TYPE, ColdSweat.MOD_ID);
+    public static final SoulLampFueledTrigger SOUL_LAMP_FUELED =
+            register("soulspring_lamp_fueled", new SoulLampFueledTrigger());
 
-    public static final DeferredHolder<CriterionTrigger<?>, TemperatureChangedTrigger> TEMPERATURE_CHANGED = TRIGGERS.register("temperature_changed", TemperatureChangedTrigger::new);
-    public static final DeferredHolder<CriterionTrigger<?>, SoulLampFueledTrigger> SOUL_LAMP_FUELED = TRIGGERS.register("soulspring_lamp_fueled", SoulLampFueledTrigger::new);
-    public static final DeferredHolder<CriterionTrigger<?>, BlockAffectTempTrigger> BLOCK_AFFECTS_TEMP = TRIGGERS.register("block_affects_temperature", BlockAffectTempTrigger::new);
-    public static final DeferredHolder<CriterionTrigger<?>, ArmorInsulatedTrigger> ARMOR_INSULATED = TRIGGERS.register("armor_insulated", ArmorInsulatedTrigger::new);
+    public static final ArmorInsulatedTrigger ARMOR_INSULATED =
+            register("armor_insulated", new ArmorInsulatedTrigger());
+
+    private static <T extends CriterionTrigger<?>> T register(String path, T trigger)
+    {
+        return Registry.register(
+                BuiltInRegistries.TRIGGER_TYPES,
+                ColdSweatFabric.id(path),
+                trigger
+        );
+    }
+
+    public static void initialize()
+    {
+        ColdSweatFabric.LOGGER.info("Registering Cold Sweat standalone advancement triggers.");
+    }
+
+    private ModAdvancementTriggers()
+    {
+    }
 }

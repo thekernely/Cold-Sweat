@@ -34,6 +34,9 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/core/init/ModArmorMaterials.java'
             include 'com/momosoftworks/coldsweat/core/init/ModItemComponents.java'
             include 'com/momosoftworks/coldsweat/core/init/ModItems.java'
+            include 'com/momosoftworks/coldsweat/core/init/ModAdvancementTriggers.java'
+            include 'com/momosoftworks/coldsweat/core/advancement/trigger/ArmorInsulatedTrigger.java'
+            include 'com/momosoftworks/coldsweat/core/advancement/trigger/SoulLampFueledTrigger.java'
             include 'com/momosoftworks/coldsweat/common/effect/**'
             include 'com/momosoftworks/coldsweat/util/registries/ModGameRules.java'
 
@@ -57,8 +60,8 @@ sourceSets {
             include 'assets/cold_sweat/textures/mob_effect/**'
             include 'assets/cold_sweat/lang/**'
 
-            // Legacy 1.21.1 item model JSONs remain excluded until they are
-            // migrated to the modern item-definition format used by 26.2.
+            // Advancement JSONs stay excluded until all Cold Sweat criterion
+            // triggers and their gameplay dependencies are ported.
         }
     }
 }
