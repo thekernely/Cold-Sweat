@@ -12,13 +12,14 @@ import java.util.function.Function;
 /**
  * Shade/overcast temperature modifier.
  *
- * This mirrors upstream Cold Sweat's sky-light + rain calculation. The full
- * config object is not ported yet, so the upstream default shade offset is used
- * until the world-temperature config bridge lands.
+ * Upstream's default world.toml value is -9 F. As a relative temperature
+ * offset, Cold Sweat converts that to -0.2 Minecraft temperature units.
+ * The full config bridge will replace this constant later.
  */
 public class ShadeTempModifier extends TempModifier
 {
-    public static final double DEFAULT_SHADE_TEMP_OFFSET = 0.35;
+    public static final double DEFAULT_SHADE_TEMP_OFFSET =
+            Temperature.convert(-9.0, Temperature.Units.F, Temperature.Units.MC, false);
 
     @Override
     protected Function<Double, Double> calculate(
