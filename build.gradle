@@ -33,6 +33,14 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/core/init/ModPotions.java'
             include 'com/momosoftworks/coldsweat/common/effect/**'
             include 'com/momosoftworks/coldsweat/util/registries/ModGameRules.java'
+
+            // Vanilla/Fabric tag-key definitions needed by upcoming content registries.
+            include 'com/momosoftworks/coldsweat/data/tag/ModBiomeTags.java'
+            include 'com/momosoftworks/coldsweat/data/tag/ModBlockTags.java'
+            include 'com/momosoftworks/coldsweat/data/tag/ModEffectTags.java'
+            include 'com/momosoftworks/coldsweat/data/tag/ModEntityTags.java'
+            include 'com/momosoftworks/coldsweat/data/tag/ModFluidTags.java'
+            include 'com/momosoftworks/coldsweat/data/tag/ModItemTags.java'
         }
 
         resources {
@@ -45,6 +53,9 @@ sourceSets {
             include 'assets/cold_sweat/textures/particle/**'
             include 'assets/cold_sweat/textures/mob_effect/**'
             include 'assets/cold_sweat/lang/**'
+
+            // Tag JSONs stay excluded until the referenced blocks/items/entities
+            // are registered, so datapack loading cannot fail on missing IDs.
         }
     }
 }

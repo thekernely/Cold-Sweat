@@ -1,13 +1,13 @@
 package com.momosoftworks.coldsweat.data.tag;
 
-import com.momosoftworks.coldsweat.ColdSweat;
-import com.momosoftworks.coldsweat.compat.CompatManager;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.tags.ItemTags;
+import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
+import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 
-public class ModItemTags
+public final class ModItemTags
 {
     public static final TagKey<Item> BOILER_VALID = createTag("boiler_valid");
     public static final TagKey<Item> ICEBOX_VALID = createTag("icebox_valid");
@@ -30,18 +30,25 @@ public class ModItemTags
     public static final TagKey<Item> EQUIPABLE_CURIOS = createNamespaceTag("curios", "equipable");
 
     private static TagKey<Item> createTag(String name)
-    {   return ItemTags.create(ResourceLocation.fromNamespaceAndPath(ColdSweat.MOD_ID, name));
+    {
+        return TagKey.create(Registries.ITEM, ColdSweatFabric.id(name));
     }
 
     private static TagKey<Item> createCommonTag(String name)
-    {   return ItemTags.create(ResourceLocation.fromNamespaceAndPath("c", name));
+    {
+        return TagKey.create(Registries.ITEM, Identifier.fromNamespaceAndPath("c", name));
     }
 
     private static TagKey<Item> createNamespaceTag(String namespace, String name)
     {
-        if (!CompatManager.modLoaded(namespace))
-        {   return null;
+        if (!FabricLoader.getInstance().isModLoaded(namespace))
+        {
+            return null;
         }
-        return ItemTags.create(ResourceLocation.fromNamespaceAndPath(namespace, name));
+        return TagKey.create(Registries.ITEM, Identifier.fromNamespaceAndPath(namespace, name));
+    }
+
+    private ModItemTags()
+    {
     }
 }

@@ -1,12 +1,12 @@
 package com.momosoftworks.coldsweat.data.tag;
 
-import com.momosoftworks.coldsweat.ColdSweat;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.tags.BlockTags;
+import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.block.Block;
 
-public class ModBlockTags
+public final class ModBlockTags
 {
     public static final TagKey<Block> SOUL_STALK_PLACEABLE_ON = createTag("may_place_on/soul_stalk");
     public static final TagKey<Block> SOUL_SAND_REPLACEABLE = createTag("soul_sand_replaceable");
@@ -21,10 +21,16 @@ public class ModBlockTags
     public static final TagKey<Block> SOUL_FIRE = createCommonTag("soul_fire");
 
     private static TagKey<Block> createTag(String name)
-    {   return BlockTags.create(ResourceLocation.fromNamespaceAndPath(ColdSweat.MOD_ID, name));
+    {
+        return TagKey.create(Registries.BLOCK, ColdSweatFabric.id(name));
     }
 
     private static TagKey<Block> createCommonTag(String name)
-    {   return BlockTags.create(ResourceLocation.fromNamespaceAndPath("c", name));
+    {
+        return TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("c", name));
+    }
+
+    private ModBlockTags()
+    {
     }
 }

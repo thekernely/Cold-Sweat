@@ -1,18 +1,23 @@
 package com.momosoftworks.coldsweat.data.tag;
 
-import com.momosoftworks.coldsweat.ColdSweat;
+import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.biome.Biome;
 
-public class ModBiomeTags
+public final class ModBiomeTags
 {
     private static TagKey<Biome> createTag(String name)
-    {   return TagKey.create(Registries.BIOME, ResourceLocation.fromNamespaceAndPath(ColdSweat.MOD_ID, name));
+    {
+        return TagKey.create(Registries.BIOME, ColdSweatFabric.id(name));
     }
 
-    private static TagKey<Biome> createForgeTag(String name)
-    {   return TagKey.create(Registries.BIOME, ResourceLocation.fromNamespaceAndPath("c", name));
+    private static TagKey<Biome> createCommonTag(String name)
+    {
+        return TagKey.create(Registries.BIOME, net.minecraft.resources.Identifier.fromNamespaceAndPath("c", name));
+    }
+
+    private ModBiomeTags()
+    {
     }
 }
