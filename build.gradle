@@ -41,6 +41,7 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/core/advancement/trigger/SoulLampFueledTrigger.java'
             include 'com/momosoftworks/coldsweat/common/effect/**'
             include 'com/momosoftworks/coldsweat/common/capability/temperature/TemperatureData.java'
+            include 'com/momosoftworks/coldsweat/common/capability/handler/EntityTempManager.java'
             include 'com/momosoftworks/coldsweat/util/registries/ModGameRules.java'
 
             include 'com/momosoftworks/coldsweat/data/tag/ModBiomeTags.java'
@@ -50,7 +51,7 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/data/tag/ModFluidTags.java'
             include 'com/momosoftworks/coldsweat/data/tag/ModItemTags.java'
 
-            // M3: core temperature model + Fabric-backed persistent trait storage.
+            // M3: core temperature model, persistence, sync, and manager boundary.
             include 'com/momosoftworks/coldsweat/api/util/Temperature.java'
         }
 

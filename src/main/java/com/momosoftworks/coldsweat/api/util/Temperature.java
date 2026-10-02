@@ -1,8 +1,8 @@
 package com.momosoftworks.coldsweat.api.util;
 
 import com.mojang.serialization.Codec;
+import com.momosoftworks.coldsweat.common.capability.handler.EntityTempManager;
 import com.momosoftworks.coldsweat.common.capability.temperature.TemperatureData;
-import com.momosoftworks.coldsweat.core.init.ModDataAttachments;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.codec.ByteBufCodecs;
@@ -16,7 +16,8 @@ import java.util.EnumMap;
  * General helper class for temperature-related actions.
  *
  * M3 is restoring this class incrementally. Unit/trait behavior and persistent
- * entity trait access are live; modifiers/events are restored in later M3 slices.
+ * synchronized entity trait access are live; modifiers/events are restored in
+ * later M3 slices.
  */
 public final class Temperature
 {
@@ -60,36 +61,31 @@ public final class Temperature
 
     public static double get(LivingEntity entity, Trait trait)
     {
-        return getData(entity).getTrait(trait);
+        return EntityTempManager.getTemperatureData(entity)
+                .map(data -> data.getTrait(trait))
+                .orElse(0.0);
     }
 
     public static void set(LivingEntity entity, Trait trait, double value)
     {
-        entity.setAttached(
-                ModDataAttachments.ENTITY_TEMPERATURE,
-                getData(entity).withTrait(trait, value)
-        );
+        EntityTempManager.getTemperatureData(entity)
+                .ifPresent(data -> EntityTempManager.setTemperatureData(entity, data.withTrait(trait, value)));
     }
 
     public static void add(LivingEntity entity, Trait trait, double value)
     {
-        set(entity, trait, get(entity, trait) + value);
+        EntityTempManager.getTemperatureData(entity)
+                .ifPresent(data -> EntityTempManager.setTemperatureData(
+                        entity,
+                        data.withTrait(trait, data.getTrait(trait) + value)
+                ));
     }
 
     public static EnumMap<Trait, Double> getTemperatures(LivingEntity entity)
     {
-        return getData(entity).copyTraits();
-    }
-
-    private static TemperatureData getData(LivingEntity entity)
-    {
-        TemperatureData data = entity.getAttached(ModDataAttachments.ENTITY_TEMPERATURE);
-        if (data == null)
-        {
-            data = new TemperatureData();
-            entity.setAttached(ModDataAttachments.ENTITY_TEMPERATURE, data);
-        }
-        return data;
+        return EntityTempManager.getTemperatureData(entity)
+                .map(TemperatureData::copyTraits)
+                .orElseGet(() -> new EnumMap<>(Trait.class));
     }
 
     private static <T extends Enum<T> & StringRepresentable> Codec<T> enumIgnoreCase(T[] values)
