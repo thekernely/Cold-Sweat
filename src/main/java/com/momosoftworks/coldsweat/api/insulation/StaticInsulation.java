@@ -3,107 +3,130 @@ package com.momosoftworks.coldsweat.api.insulation;
 import com.mojang.datafixers.util.Pair;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import com.momosoftworks.coldsweat.data.codec.util.ExtraCodecs;
-import com.momosoftworks.coldsweat.util.math.CSMath;
-import io.netty.buffer.ByteBuf;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
 
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Fixed cold/heat insulation values.
+ */
 public class StaticInsulation extends Insulation
 {
     public static final Codec<StaticInsulation> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-            ExtraCodecs.DOUBLE.fieldOf("cold").forGetter(StaticInsulation::getCold),
-            ExtraCodecs.DOUBLE.fieldOf("heat").forGetter(StaticInsulation::getHeat)
+            Insulation.DOUBLE_CODEC.fieldOf("cold").forGetter(StaticInsulation::getCold),
+            Insulation.DOUBLE_CODEC.fieldOf("heat").forGetter(StaticInsulation::getHeat)
     ).apply(instance, StaticInsulation::new));
-
-    public static final StreamCodec<ByteBuf, StaticInsulation> STREAM_CODEC = ByteBufCodecs.fromCodec(CODEC);
 
     private final double cold;
     private final double heat;
 
     public StaticInsulation(double cold, double heat)
-    {   this.cold = cold;
+    {
+        this.cold = cold;
         this.heat = heat;
     }
 
     public StaticInsulation(Pair<? extends Number, ? extends Number> pair)
-    {   this(pair.getFirst().doubleValue(), pair.getSecond().doubleValue());
+    {
+        this(pair.getFirst().doubleValue(), pair.getSecond().doubleValue());
     }
 
     @Override
     public double getCold()
-    {   return cold;
+    {
+        return cold;
     }
 
     @Override
     public double getHeat()
-    {   return heat;
+    {
+        return heat;
     }
 
     @Override
     public double getValue()
-    {   return this.cold + this.heat;
+    {
+        return cold + heat;
     }
 
     @Override
     public boolean isEmpty()
-    {   return cold == 0 && heat == 0;
+    {
+        return cold == 0 && heat == 0;
     }
 
     @Override
     public List<Insulation> split()
     {
         List<Insulation> insulation = new ArrayList<>();
-        double cold = this.getCold();
-        double heat = this.getHeat();
-        double neutral = cold > 0 == heat > 0 ? CSMath.minAbs(cold, heat) : 0;
+        double cold = this.cold;
+        double heat = this.heat;
+        double neutral = (cold > 0) == (heat > 0) ? minAbs(cold, heat) : 0;
+
         cold -= neutral;
         heat -= neutral;
 
-        // Cold insulation
-        for (int i = 0; i < CSMath.ceil(Math.abs(cold) / 2); i++)
-        {   double coldInsul = CSMath.minAbs(CSMath.shrink(cold, i * 2), 2 * CSMath.sign(cold));
-            insulation.add(new StaticInsulation(coldInsul, 0d));
+        int coldSlots = (int) Math.ceil(Math.abs(cold) / 2d);
+        for (int i = 0; i < coldSlots; i++)
+        {
+            double coldInsulation = minAbs(shrink(cold, i * 2d), 2d * Math.signum(cold));
+            insulation.add(new StaticInsulation(coldInsulation, 0d));
         }
 
-        // Neutral insulation
-        for (int i = 0; i < CSMath.ceil(Math.abs(neutral)); i++)
-        {   double neutralInsul = CSMath.minAbs(CSMath.shrink(neutral, i), 1 * CSMath.sign(neutral));
-            insulation.add(new StaticInsulation(neutralInsul, neutralInsul));
+        int neutralSlots = (int) Math.ceil(Math.abs(neutral));
+        for (int i = 0; i < neutralSlots; i++)
+        {
+            double neutralInsulation = minAbs(shrink(neutral, i), Math.signum(neutral));
+            insulation.add(new StaticInsulation(neutralInsulation, neutralInsulation));
         }
 
-        // Heat insulation
-        for (int i = 0; i < CSMath.ceil(Math.abs(heat) / 2); i++)
-        {   double heatInsul = CSMath.minAbs(CSMath.shrink(heat, i * 2),  2 * CSMath.sign(heat));
-            insulation.add(new StaticInsulation(0d, heatInsul));
+        int heatSlots = (int) Math.ceil(Math.abs(heat) / 2d);
+        for (int i = 0; i < heatSlots; i++)
+        {
+            double heatInsulation = minAbs(shrink(heat, i * 2d), 2d * Math.signum(heat));
+            insulation.add(new StaticInsulation(0d, heatInsulation));
         }
         return insulation;
     }
 
+    private static double shrink(double value, double amount)
+    {
+        return Math.max(0, Math.abs(value) - amount) * Math.signum(value);
+    }
+
+    private static double minAbs(double first, double second)
+    {
+        return Math.abs(second) < Math.abs(first) ? second : first;
+    }
+
+    @SuppressWarnings("unchecked")
     @Override
     public <T extends Insulation> T copy()
-    {   return (T) new StaticInsulation(cold, heat);
+    {
+        return (T) new StaticInsulation(cold, heat);
     }
 
     @Override
     public String toString()
-    {   return "Insulation{" + "cold=" + cold + ", heat=" + heat + '}';
+    {
+        return "StaticInsulation{" + "cold=" + cold + ", heat=" + heat + '}';
     }
 
     @Override
     public boolean equals(Object obj)
     {
-        if (this == obj) return true;
-        return obj instanceof StaticInsulation insul
-            && cold == insul.cold
-            && heat == insul.heat;
+        if (this == obj)
+        {
+            return true;
+        }
+        return obj instanceof StaticInsulation insulation
+                && cold == insulation.cold
+                && heat == insulation.heat;
     }
 
-    public static StaticInsulation deserialize(CompoundTag tag)
-    {   return new StaticInsulation(tag.getDouble("cold"), tag.getDouble("heat"));
+    @Override
+    public int hashCode()
+    {
+        return Double.hashCode(cold) * 31 + Double.hashCode(heat);
     }
 }

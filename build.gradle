@@ -82,6 +82,13 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/config/WorldTemperatureSettings.java'
             include 'com/momosoftworks/coldsweat/common/capability/temperature/TemperatureModifierRuntime.java'
             include 'com/momosoftworks/coldsweat/api/event/common/temperautre/TemperatureChangedEvent.java'
+
+            // M5.1: insulation value model and adaptive armor state foundation.
+            // Keep this slice explicit: api/insulation/slot and higher insulation systems
+            // still depend on configuration/utilities that belong to later M5 overlays.
+            include 'com/momosoftworks/coldsweat/api/insulation/Insulation.java'
+            include 'com/momosoftworks/coldsweat/api/insulation/StaticInsulation.java'
+            include 'com/momosoftworks/coldsweat/api/insulation/AdaptiveInsulation.java'
         }
 
         resources {
