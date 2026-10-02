@@ -1,6 +1,7 @@
 package com.momosoftworks.coldsweat.api.temperature.modifier;
 
 import com.momosoftworks.coldsweat.api.util.Temperature;
+import com.momosoftworks.coldsweat.config.WorldTemperatureSettings;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.world.entity.LivingEntity;
@@ -13,8 +14,7 @@ import java.util.function.Function;
  * First Fabric biome-temperature modifier.
  *
  * This restores the standalone vanilla-biome sampling path before the larger
- * Cold Sweat config layer (dimension/structure overrides, biome offsets, time
- * variation, compat) is brought across.
+ * Cold Sweat biome/structure override tables are brought across.
  */
 public class BiomeTempModifier extends TempModifier
 {
@@ -67,7 +67,11 @@ public class BiomeTempModifier extends TempModifier
                         ? total / collected
                         : level.getBiome(center).value().getBaseTemperature();
 
-        return temperature -> temperature + sampledTemperature;
+        double dimensionOffset =
+                WorldTemperatureSettings.getDimensionTempOffset(level);
+
+        return temperature ->
+                temperature + sampledTemperature + dimensionOffset;
     }
 
     public int getSamples()

@@ -1,5 +1,6 @@
 package com.momosoftworks.coldsweat.util.world;
 
+import com.momosoftworks.coldsweat.config.WorldTemperatureSettings;
 import net.minecraft.world.level.Level;
 
 /**
@@ -12,8 +13,6 @@ import net.minecraft.world.level.Level;
 public final class WorldTemperatureUtil
 {
     public static final long DAY_LENGTH = 24000L;
-    public static final long DEFAULT_HOTTEST_TIME = 6000L;
-    public static final long DEFAULT_COLDEST_TIME = 18000L;
 
     private WorldTemperatureUtil()
     {
@@ -29,8 +28,8 @@ public final class WorldTemperatureUtil
     {
         return getTimeMultiplier(
                 level,
-                DEFAULT_HOTTEST_TIME,
-                DEFAULT_COLDEST_TIME
+                WorldTemperatureSettings.getHottestTime(),
+                WorldTemperatureSettings.getColdestTime()
         );
     }
 
