@@ -1,16 +1,18 @@
 package com.momosoftworks.coldsweat.common.blockentity;
 
+import com.momosoftworks.coldsweat.core.init.ModFluids;
 import net.fabricmc.fabric.api.transfer.v1.fluid.FluidConstants;
 import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant;
 import net.fabricmc.fabric.api.transfer.v1.fluid.base.SingleFluidStorage;
 import net.fabricmc.fabric.api.transfer.v1.transaction.TransactionContext;
+import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
 
 /**
- * Insertion-only Fabric Transfer API view of Cold Sweat's hot-fuel tank.
+ * Insertion-only Fabric Transfer API view of one Cold Sweat fuel tank.
  *
- * Cold Sweat stores machine fuel in a 0..1000 internal scale. Fabric uses
- * droplets (81,000 per bucket), so one fuel point maps exactly to 81 droplets.
+ * One bucket is exactly 1000 fuel points, preserving the upstream machine
+ * capacity while keeping Fabric's droplet units transactional.
  */
 public final class ThermalFluidStorage extends SingleFluidStorage
 {
@@ -18,11 +20,16 @@ public final class ThermalFluidStorage extends SingleFluidStorage
             FluidConstants.BUCKET / HearthBlockEntity.MAX_FUEL;
 
     private final HearthBlockEntity owner;
+    private final FuelKind kind;
 
-    public ThermalFluidStorage(HearthBlockEntity owner)
+    public ThermalFluidStorage(
+            HearthBlockEntity owner,
+            FuelKind kind
+    )
     {
         this.owner = owner;
-        syncFromFuel(owner.getHotFuel());
+        this.kind = kind;
+        syncFromFuel(currentFuel());
     }
 
     @Override
@@ -34,7 +41,7 @@ public final class ThermalFluidStorage extends SingleFluidStorage
     @Override
     protected boolean canInsert(FluidVariant variant)
     {
-        return variant.getFluid() == Fluids.LAVA;
+        return variant.getFluid() == acceptedFluid();
     }
 
     @Override
@@ -51,7 +58,10 @@ public final class ThermalFluidStorage extends SingleFluidStorage
     )
     {
         long roundedAmount =
-                maxAmount - Math.floorMod(maxAmount, DROPLETS_PER_FUEL);
+                maxAmount - Math.floorMod(
+                        maxAmount,
+                        DROPLETS_PER_FUEL
+                );
 
         if (roundedAmount <= 0)
         {
@@ -68,24 +78,54 @@ public final class ThermalFluidStorage extends SingleFluidStorage
     @Override
     protected void onFinalCommit()
     {
-        owner.setHotFuel(
-                (int) Math.min(
-                        HearthBlockEntity.MAX_FUEL,
-                        amount / DROPLETS_PER_FUEL
-                )
+        int fuel = (int) Math.min(
+                HearthBlockEntity.MAX_FUEL,
+                amount / DROPLETS_PER_FUEL
         );
+
+        if (kind == FuelKind.HOT)
+        {
+            owner.setHotFuel(fuel);
+        }
+        else
+        {
+            owner.setColdFuel(fuel);
+        }
     }
 
     void syncFromFuel(int fuel)
     {
         int clamped = Math.max(
                 0,
-                Math.min(HearthBlockEntity.MAX_FUEL, fuel)
+                Math.min(
+                        HearthBlockEntity.MAX_FUEL,
+                        fuel
+                )
         );
 
         amount = (long) clamped * DROPLETS_PER_FUEL;
         variant = clamped > 0
-                ? FluidVariant.of(Fluids.LAVA)
+                ? FluidVariant.of(acceptedFluid())
                 : FluidVariant.blank();
+    }
+
+    private int currentFuel()
+    {
+        return kind == FuelKind.HOT
+                ? owner.getHotFuel()
+                : owner.getColdFuel();
+    }
+
+    private Fluid acceptedFluid()
+    {
+        return kind == FuelKind.HOT
+                ? Fluids.LAVA
+                : ModFluids.SLUSH;
+    }
+
+    public enum FuelKind
+    {
+        HOT,
+        COLD
     }
 }

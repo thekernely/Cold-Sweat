@@ -3,146 +3,172 @@ package com.momosoftworks.coldsweat.common.fluid;
 import com.momosoftworks.coldsweat.core.init.ModBlocks;
 import com.momosoftworks.coldsweat.core.init.ModFluids;
 import com.momosoftworks.coldsweat.core.init.ModItems;
-import com.momosoftworks.coldsweat.core.init.ModSounds;
 import com.momosoftworks.coldsweat.util.registries.ModGameRules;
-import com.momosoftworks.coldsweat.util.world.WorldHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.particles.BlockParticleOption;
-import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
-import net.minecraft.tags.FluidTags;
-import net.minecraft.world.level.Level;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.LevelAccessor;
-import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.LiquidBlock;
-import net.minecraft.world.level.block.SoundType;
-import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.material.FlowingFluid;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.FluidState;
-import net.minecraft.world.level.material.MapColor;
-import net.minecraft.world.level.material.PushReaction;
-import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.client.extensions.common.IClientFluidTypeExtensions;
-import net.neoforged.neoforge.common.SoundActions;
-import net.neoforged.neoforge.event.EventHooks;
-import net.neoforged.neoforge.fluids.BaseFlowingFluid;
-import net.neoforged.neoforge.fluids.FluidType;
 
-public abstract class SlushFluid extends BaseFlowingFluid implements IClientFluidTypeExtensions
+import java.util.Optional;
+
+/**
+ * Fabric-native Slush fluid.
+ *
+ * The flow constants preserve the upstream Cold Sweat defaults:
+ * slope distance 2, drop-off 2, tick delay 30 and no infinite source
+ * conversion in the initial Fabric port.
+ */
+public abstract class SlushFluid extends FlowingFluid
 {
-    protected SlushFluid(Properties properties)
-    {   super(properties);
-    }
-
-    public static BlockBehaviour.Properties getBlockProperties()
+    @Override
+    public Fluid getFlowing()
     {
-        return BlockBehaviour.Properties.of()
-                .mapColor(MapColor.ICE)
-                .replaceable()
-                .noCollission()
-                .randomTicks()
-                .strength(100.0F)
-                .pushReaction(PushReaction.DESTROY)
-                .noLootTable()
-                .liquid()
-                .sound(SoundType.EMPTY);
-    }
-
-    public static FluidType.Properties getFluidProperties()
-    {
-        return FluidType.Properties.create()
-                .descriptionId("block.cold_sweat.slush")
-                .canSwim(false)
-                .fallDistanceModifier(0.2f)
-                .sound(SoundActions.BUCKET_FILL, ModSounds.BUCKET_FILL_SLUSH.value())
-                .sound(SoundActions.BUCKET_EMPTY, ModSounds.BUCKET_EMPTY_SLUSH.value())
-                .supportsBoating(true)
-                .canExtinguish(true)
-                .canHydrate(true);
-    }
-
-    public static BaseFlowingFluid.Properties getForgeProperties()
-    {
-        return new BaseFlowingFluid.Properties(ModFluids.SLUSH_TYPE, ModFluids.SLUSH, ModFluids.FLOWING_SLUSH)
-                .slopeFindDistance(2)
-                .levelDecreasePerBlock(2)
-                .tickRate(30)
-                .explosionResistance(100)
-                .bucket(ModItems.SLUSH_BUCKET)
-                .block(ModBlocks.SLUSH);
+        return ModFluids.FLOWING_SLUSH;
     }
 
     @Override
-    public boolean canConvertToSource(FluidState state, Level level, BlockPos pos)
-    {   return level.getGameRules().getBoolean(ModGameRules.RULE_SLUSH_SOURCE_CONVERSION);
+    public Fluid getSource()
+    {
+        return ModFluids.SLUSH;
     }
 
     @Override
-    protected void spreadTo(LevelAccessor level, BlockPos pos, BlockState blockState, Direction direction, FluidState fluidState)
+    public Item getBucket()
     {
-        FluidState targetFluidState = level.getFluidState(pos);
-
-        if (targetFluidState.is(FluidTags.WATER))
-        {
-            BlockState resultBlock = Blocks.SNOW_BLOCK.defaultBlockState();
-
-            if (blockState.getBlock() instanceof LiquidBlock)
-            {   level.setBlock(pos, EventHooks.fireFluidPlaceBlockEvent(level, pos, pos, resultBlock), 3);
-            }
-            fizz(level, pos);
-            return;
-        }
-        super.spreadTo(level, pos, blockState, direction, fluidState);
+        return ModItems.SLUSH_BUCKET;
     }
 
-    public static void fizz(LevelAccessor ilevel, BlockPos pos)
+    @Override
+    protected boolean canConvertToSource(ServerLevel level)
     {
-        if (ilevel instanceof Level level)
-        {
-            Vec3 centerPos = pos.getCenter();
-            BlockParticleOption particleData = new BlockParticleOption(ParticleTypes.BLOCK, Blocks.SNOW_BLOCK.defaultBlockState());
-            WorldHelper.spawnParticleBatch(level, particleData, centerPos.x, centerPos.y, centerPos.z, 0.6, 0.6, 0.6, 15, 0.1);
-            level.playSound(null, pos, SoundEvents.SNOW_BREAK, SoundSource.BLOCKS);
-        }
+        return level.getGameRules().get(
+                ModGameRules.RULE_SLUSH_SOURCE_CONVERSION
+        );
     }
 
-    public static class Flowing extends SlushFluid
+    @Override
+    protected void beforeDestroyingBlock(
+            LevelAccessor level,
+            BlockPos pos,
+            BlockState state
+    )
     {
-        public Flowing(Properties properties)
-        {   super(properties);
-            registerDefaultState(getStateDefinition().any().setValue(LEVEL, 7));
-        }
+        BlockEntity blockEntity =
+                state.hasBlockEntity()
+                        ? level.getBlockEntity(pos)
+                        : null;
+        Block.dropResources(state, level, pos, blockEntity);
+    }
 
-        protected void createFluidStateDefinition(StateDefinition.Builder<Fluid, FluidState> builder)
-        {   super.createFluidStateDefinition(builder);
+    @Override
+    protected int getSlopeFindDistance(LevelReader level)
+    {
+        return 2;
+    }
+
+    @Override
+    public BlockState createLegacyBlock(FluidState fluidState)
+    {
+        return ModBlocks.SLUSH.defaultBlockState()
+                .setValue(
+                        LiquidBlock.LEVEL,
+                        getLegacyLevel(fluidState)
+                );
+    }
+
+    @Override
+    public boolean isSame(Fluid other)
+    {
+        return other == ModFluids.SLUSH
+                || other == ModFluids.FLOWING_SLUSH;
+    }
+
+    @Override
+    public int getDropOff(LevelReader level)
+    {
+        return 2;
+    }
+
+    @Override
+    public int getTickDelay(LevelReader level)
+    {
+        return 30;
+    }
+
+    @Override
+    public boolean canBeReplacedWith(
+            FluidState state,
+            BlockGetter level,
+            BlockPos pos,
+            Fluid other,
+            Direction direction
+    )
+    {
+        return direction == Direction.DOWN
+                && !other.isSame(this);
+    }
+
+    @Override
+    protected float getExplosionResistance()
+    {
+        return 100.0F;
+    }
+
+    @Override
+    public Optional<SoundEvent> getPickupSound()
+    {
+        return Optional.of(SoundEvents.BUCKET_FILL_POWDER_SNOW);
+    }
+
+    public static final class Flowing extends SlushFluid
+    {
+        @Override
+        protected void createFluidStateDefinition(
+                StateDefinition.Builder<Fluid, FluidState> builder
+        )
+        {
+            super.createFluidStateDefinition(builder);
             builder.add(LEVEL);
         }
 
+        @Override
         public int getAmount(FluidState state)
-        {   return state.getValue(LEVEL);
+        {
+            return state.getValue(LEVEL);
         }
 
+        @Override
         public boolean isSource(FluidState state)
-        {   return false;
+        {
+            return false;
         }
     }
 
-    public static class Source extends SlushFluid
+    public static final class Source extends SlushFluid
     {
-        public Source(Properties properties)
-        {   super(properties);
-        }
-
+        @Override
         public int getAmount(FluidState state)
-        {   return 8;
+        {
+            return 8;
         }
 
+        @Override
         public boolean isSource(FluidState state)
-        {   return true;
+        {
+            return true;
         }
     }
 }

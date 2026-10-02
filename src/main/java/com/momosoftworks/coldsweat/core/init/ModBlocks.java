@@ -5,6 +5,7 @@ import com.momosoftworks.coldsweat.common.block.HearthBottomBlock;
 import com.momosoftworks.coldsweat.common.block.HearthTopBlock;
 import com.momosoftworks.coldsweat.common.block.IceboxBlock;
 import com.momosoftworks.coldsweat.common.block.SmokestackBlock;
+import com.momosoftworks.coldsweat.common.block.SlushLiquidBlock;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -74,6 +75,22 @@ public final class ModBlocks
                     .noOcclusion()
     );
 
+
+    public static final SlushLiquidBlock SLUSH = register(
+            "slush",
+            properties -> new SlushLiquidBlock(
+                    ModFluids.SLUSH,
+                    properties
+            ),
+            BlockBehaviour.Properties.of()
+                    .replaceable()
+                    .noCollision()
+                    .strength(100.0F)
+                    .noLootTable()
+                    .liquid()
+                    .sound(SoundType.EMPTY)
+    );
+
     private static <T extends Block> T register(
             String path,
             Function<BlockBehaviour.Properties, T> factory,
@@ -88,7 +105,7 @@ public final class ModBlocks
 
     public static void initialize()
     {
-        ColdSweatFabric.LOGGER.info("Registering Cold Sweat Hearth, Boiler, Icebox, and Smokestack blocks.");
+        ColdSweatFabric.LOGGER.info("Registering Cold Sweat thermal machines, Smokestack, and Slush block.");
     }
 
     private ModBlocks()

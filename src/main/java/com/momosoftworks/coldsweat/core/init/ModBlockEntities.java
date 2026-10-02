@@ -63,7 +63,7 @@ public final class ModBlockEntities
         {
             FluidStorage.SIDED.registerForBlockEntity(
                     (blockEntity, direction) ->
-                            blockEntity.getHotFluidStorage(),
+                            blockEntity.getFluidStorage(),
                     HEARTH
             );
 
@@ -73,11 +73,17 @@ public final class ModBlockEntities
                     BOILER
             );
 
+            FluidStorage.SIDED.registerForBlockEntity(
+                    (blockEntity, direction) ->
+                            blockEntity.getColdFluidStorage(),
+                    ICEBOX
+            );
+
             transferApiRegistered = true;
         }
 
         ColdSweatFabric.LOGGER.info(
-                "Registering Cold Sweat thermal block entities and hot-fluid transfer exposure."
+                "Registering Cold Sweat thermal block entities and hot/cold fluid transfer exposure."
         );
     }
 

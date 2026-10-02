@@ -14,7 +14,9 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.BucketItem;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.ItemUseAnimation;
 import net.minecraft.world.item.Rarity;
 import net.minecraft.world.item.component.Consumable;
@@ -76,6 +78,18 @@ public final class ModItems
 
     public static final Item SMOKESTACK = registerBlockItem(
             "smokestack", ModBlocks.SMOKESTACK, new Item.Properties()
+    );
+
+
+    public static final Item SLUSH_BUCKET = register(
+            "slush_bucket",
+            properties -> new BucketItem(
+                    ModFluids.SLUSH,
+                    properties
+            ),
+            new Item.Properties()
+                    .craftRemainder(Items.BUCKET)
+                    .stacksTo(1)
     );
 
     /*
@@ -191,7 +205,7 @@ public final class ModItems
 
     public static void initialize()
     {
-        ColdSweatFabric.LOGGER.info("Registering Cold Sweat material, consumable, utility, armor, and thermal-machine items.");
+        ColdSweatFabric.LOGGER.info("Registering Cold Sweat material, consumable, utility, armor, thermal-machine, and Slush items.");
     }
 
     private ModItems()

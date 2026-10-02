@@ -4,8 +4,13 @@ import com.momosoftworks.coldsweat.common.container.BoilerMenu;
 import com.momosoftworks.coldsweat.common.container.HearthMenu;
 import com.momosoftworks.coldsweat.common.container.IceboxMenu;
 import com.momosoftworks.coldsweat.core.init.ModMenus;
+import com.momosoftworks.coldsweat.core.init.ModFluids;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.render.fluid.v1.FluidRenderingRegistry;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.renderer.block.FluidModel;
+import net.minecraft.client.resources.model.sprite.Material;
+import net.minecraft.resources.Identifier;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
@@ -21,6 +26,29 @@ public final class ColdSweatFabricClient implements ClientModInitializer
         MenuScreens.register(ModMenus.HEARTH, HearthScreen::new);
         MenuScreens.register(ModMenus.BOILER, BoilerScreen::new);
         MenuScreens.register(ModMenus.ICEBOX, IceboxScreen::new);
+
+        FluidModel.Unbaked slushModel = new FluidModel.Unbaked(
+                new Material(
+                        Identifier.fromNamespaceAndPath(
+                                "minecraft",
+                                "block/water_still"
+                        )
+                ),
+                new Material(
+                        Identifier.fromNamespaceAndPath(
+                                "minecraft",
+                                "block/water_flow"
+                        )
+                ),
+                null,
+                state -> 0xA9D9FF
+        );
+
+        FluidRenderingRegistry.register(
+                ModFluids.SLUSH,
+                ModFluids.FLOWING_SLUSH,
+                slushModel
+        );
     }
 
     private abstract static class ThermalMachineScreen<T extends AbstractContainerMenu>

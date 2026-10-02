@@ -34,6 +34,9 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/core/init/ModArmorMaterials.java'
             include 'com/momosoftworks/coldsweat/core/init/ModItemComponents.java'
             include 'com/momosoftworks/coldsweat/core/init/ModItems.java'
+            include 'com/momosoftworks/coldsweat/core/init/ModFluids.java'
+            include 'com/momosoftworks/coldsweat/common/fluid/SlushFluid.java'
+            include 'com/momosoftworks/coldsweat/common/block/SlushLiquidBlock.java'
             include 'com/momosoftworks/coldsweat/core/init/ModAdvancementTriggers.java'
             include 'com/momosoftworks/coldsweat/core/init/ModCreativeTabs.java'
             include 'com/momosoftworks/coldsweat/core/init/ModDataAttachments.java'
@@ -167,6 +170,20 @@ sourceSets {
             include 'assets/cold_sweat/textures/block/hearth*.png'
             include 'assets/cold_sweat/textures/block/icebox*.png'
             include 'assets/cold_sweat/textures/block/smokestack*.png'
+
+            // M6.10: Slush fluid presentation and thermal-machine release resources.
+            include 'assets/cold_sweat/blockstates/slush.json'
+            include 'assets/cold_sweat/models/item/slush_bucket.json'
+            include 'assets/cold_sweat/items/slush_bucket.json'
+            include 'assets/cold_sweat/textures/item/bucket_slush.png'
+            include 'data/cold_sweat/recipe/hearth.json'
+            include 'data/cold_sweat/recipe/boiler.json'
+            include 'data/cold_sweat/recipe/icebox.json'
+            include 'data/cold_sweat/recipe/smokestack.json'
+            include 'data/cold_sweat/loot_table/blocks/hearth_bottom.json'
+            include 'data/cold_sweat/loot_table/blocks/boiler.json'
+            include 'data/cold_sweat/loot_table/blocks/icebox.json'
+            include 'data/cold_sweat/loot_table/blocks/smokestack.json'
 
             // M5.8: first-useful-release item recipes.
             include 'data/cold_sweat/recipe/waterskin.json'

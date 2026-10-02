@@ -26,6 +26,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.AABB;
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant;
+import net.fabricmc.fabric.api.transfer.v1.storage.Storage;
+import net.fabricmc.fabric.api.transfer.v1.storage.base.CombinedStorage;
 
 import java.util.ArrayDeque;
 import java.util.HashSet;
@@ -63,7 +66,22 @@ public class HearthBlockEntity extends BlockEntity implements Container
     private boolean usingColdFuel;
 
     private final ThermalFluidStorage hotFluidStorage =
-            new ThermalFluidStorage(this);
+            new ThermalFluidStorage(
+                    this,
+                    ThermalFluidStorage.FuelKind.HOT
+            );
+    private final ThermalFluidStorage coldFluidStorage =
+            new ThermalFluidStorage(
+                    this,
+                    ThermalFluidStorage.FuelKind.COLD
+            );
+    private final Storage<FluidVariant> fluidStorage =
+            new CombinedStorage<>(
+                    List.of(
+                            hotFluidStorage,
+                            coldFluidStorage
+                    )
+            );
     private final Set<BlockPos> spreadPositions = new HashSet<>();
 
     public HearthBlockEntity(BlockPos pos, BlockState state)
@@ -157,12 +175,20 @@ public class HearthBlockEntity extends BlockEntity implements Container
     {
         ticksExisted++;
 
-        if (level != null
-                && !level.isClientSide()
-                && (spreadPositions.isEmpty()
-                    || ticksExisted % SPREAD_REBUILD_INTERVAL == 0))
+        if (level != null && !level.isClientSide())
         {
-            rebuildSpreadPositions(level);
+            if (hasFuel())
+            {
+                if (spreadPositions.isEmpty()
+                        || ticksExisted % SPREAD_REBUILD_INTERVAL == 0)
+                {
+                    rebuildSpreadPositions(level);
+                }
+            }
+            else if (!spreadPositions.isEmpty())
+            {
+                spreadPositions.clear();
+            }
         }
 
         if (hasFuel() && insulationLevel < WARM_UP_TIME)
@@ -656,6 +682,16 @@ public class HearthBlockEntity extends BlockEntity implements Container
         return hotFluidStorage;
     }
 
+    public ThermalFluidStorage getColdFluidStorage()
+    {
+        return coldFluidStorage;
+    }
+
+    public Storage<FluidVariant> getFluidStorage()
+    {
+        return fluidStorage;
+    }
+
     public void setHotFuel(int amount)
     {
         hotFuel = clampFuel(amount);
@@ -666,6 +702,7 @@ public class HearthBlockEntity extends BlockEntity implements Container
     public void setColdFuel(int amount)
     {
         coldFuel = clampFuel(amount);
+        coldFluidStorage.syncFromFuel(coldFuel);
         setChanged();
     }
 
@@ -780,6 +817,7 @@ public class HearthBlockEntity extends BlockEntity implements Container
         hotFuel = clampFuel(input.getIntOr("HotFuel", 0));
         coldFuel = clampFuel(input.getIntOr("ColdFuel", 0));
         hotFluidStorage.syncFromFuel(hotFuel);
+        coldFluidStorage.syncFromFuel(coldFuel);
         ticksExisted = Math.max(0, input.getIntOr("TicksExisted", 0));
         insulationLevel = Math.max(
                 0,

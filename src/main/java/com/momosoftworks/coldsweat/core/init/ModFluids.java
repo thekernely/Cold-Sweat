@@ -1,31 +1,51 @@
 package com.momosoftworks.coldsweat.core.init;
 
-import com.momosoftworks.coldsweat.ColdSweat;
 import com.momosoftworks.coldsweat.common.fluid.SlushFluid;
-import com.momosoftworks.coldsweat.common.fluid.SlushFluidType;
-import com.mrbysco.spoiled.registration.RegistryObject;
+import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.world.level.material.FlowingFluid;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.material.Fluid;
-import net.neoforged.neoforge.fluids.FluidType;
-import net.neoforged.neoforge.registries.DeferredHolder;
-import net.neoforged.neoforge.registries.DeferredRegister;
-import net.neoforged.neoforge.registries.NeoForgeRegistries;
+import net.minecraft.world.level.material.FlowingFluid;
 
-public class ModFluids
+public final class ModFluids
 {
-    /*
-     Fluid Types
-     */
-    public static final DeferredRegister<FluidType> FLUID_TYPES = DeferredRegister.create(NeoForgeRegistries.Keys.FLUID_TYPES, ColdSweat.MOD_ID);
+    public static final FlowingFluid SLUSH = register(
+            "slush",
+            new SlushFluid.Source()
+    );
 
-    public static final DeferredHolder<FluidType, FluidType> SLUSH_TYPE = FLUID_TYPES.register("slush", () -> new SlushFluidType(SlushFluid.getFluidProperties()));
+    public static final FlowingFluid FLOWING_SLUSH = register(
+            "flowing_slush",
+            new SlushFluid.Flowing()
+    );
 
-    /*
-     Fluids
-     */
-    public static final DeferredRegister<Fluid> FLUIDS = DeferredRegister.create(Registries.FLUID, ColdSweat.MOD_ID);
+    private static <T extends Fluid> T register(
+            String path,
+            T fluid
+    )
+    {
+        Identifier id = ColdSweatFabric.id(path);
+        ResourceKey<Fluid> key =
+                ResourceKey.create(Registries.FLUID, id);
 
-    public static final DeferredHolder<Fluid, FlowingFluid> SLUSH = FLUIDS.register("slush", () -> new SlushFluid.Source(SlushFluid.getForgeProperties()));
-    public static final DeferredHolder<Fluid, FlowingFluid> FLOWING_SLUSH = FLUIDS.register("flowing_slush", () -> new SlushFluid.Flowing(SlushFluid.getForgeProperties()));
+        return Registry.register(
+                BuiltInRegistries.FLUID,
+                key,
+                fluid
+        );
+    }
+
+    public static void initialize()
+    {
+        ColdSweatFabric.LOGGER.info(
+                "Registering Cold Sweat Slush fluid."
+        );
+    }
+
+    private ModFluids()
+    {
+    }
 }
