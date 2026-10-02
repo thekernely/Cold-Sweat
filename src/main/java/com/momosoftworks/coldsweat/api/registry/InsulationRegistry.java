@@ -1,7 +1,9 @@
 package com.momosoftworks.coldsweat.api.registry;
 
+import com.momosoftworks.coldsweat.api.insulation.AdaptiveInsulation;
 import com.momosoftworks.coldsweat.api.insulation.Insulation;
 import com.momosoftworks.coldsweat.api.insulation.StaticInsulation;
+import com.momosoftworks.coldsweat.core.init.ModItems;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -26,11 +28,27 @@ public final class InsulationRegistry
 
     static
     {
-        // Upstream ItemSettingsConfig defaults.
+        // Upstream ItemSettingsConfig defaults - vanilla leather armor.
         registerArmor(Items.LEATHER_HELMET, new StaticInsulation(5.0, 5.0));
         registerArmor(Items.LEATHER_CHESTPLATE, new StaticInsulation(7.0, 7.0));
         registerArmor(Items.LEATHER_LEGGINGS, new StaticInsulation(6.0, 6.0));
         registerArmor(Items.LEATHER_BOOTS, new StaticInsulation(5.0, 5.0));
+
+        // Upstream Cold Sweat armor defaults.
+        registerArmor(ModItems.HOGLIN_HELMET, new StaticInsulation(0.0, 10.0));
+        registerArmor(ModItems.HOGLIN_CHESTPLATE, new StaticInsulation(0.0, 14.0));
+        registerArmor(ModItems.HOGLIN_LEGGINGS, new StaticInsulation(0.0, 12.0));
+        registerArmor(ModItems.HOGLIN_BOOTS, new StaticInsulation(0.0, 10.0));
+
+        registerArmor(ModItems.GOAT_FUR_HELMET, new StaticInsulation(10.0, 0.0));
+        registerArmor(ModItems.GOAT_FUR_CHESTPLATE, new StaticInsulation(14.0, 0.0));
+        registerArmor(ModItems.GOAT_FUR_LEGGINGS, new StaticInsulation(12.0, 0.0));
+        registerArmor(ModItems.GOAT_FUR_BOOTS, new StaticInsulation(10.0, 0.0));
+
+        registerArmor(ModItems.CHAMELEON_HELMET, new AdaptiveInsulation(10.0, 0.0085));
+        registerArmor(ModItems.CHAMELEON_CHESTPLATE, new AdaptiveInsulation(14.0, 0.0085));
+        registerArmor(ModItems.CHAMELEON_LEGGINGS, new AdaptiveInsulation(12.0, 0.0085));
+        registerArmor(ModItems.CHAMELEON_BOOTS, new AdaptiveInsulation(10.0, 0.0085));
     }
 
     public static void registerArmor(Item item, Insulation... insulation)

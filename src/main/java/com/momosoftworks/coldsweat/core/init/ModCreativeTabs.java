@@ -23,6 +23,21 @@ public final class ModCreativeTabs
                 output.accept(ModItems.GOAT_FUR);
                 output.accept(ModItems.HOGLIN_HIDE);
                 output.accept(ModItems.CHAMELEON_MOLT);
+
+                output.accept(ModItems.HOGLIN_HELMET);
+                output.accept(ModItems.HOGLIN_CHESTPLATE);
+                output.accept(ModItems.HOGLIN_LEGGINGS);
+                output.accept(ModItems.HOGLIN_BOOTS);
+
+                output.accept(ModItems.GOAT_FUR_HELMET);
+                output.accept(ModItems.GOAT_FUR_CHESTPLATE);
+                output.accept(ModItems.GOAT_FUR_LEGGINGS);
+                output.accept(ModItems.GOAT_FUR_BOOTS);
+
+                output.accept(ModItems.CHAMELEON_HELMET);
+                output.accept(ModItems.CHAMELEON_CHESTPLATE);
+                output.accept(ModItems.CHAMELEON_LEGGINGS);
+                output.accept(ModItems.CHAMELEON_BOOTS);
             })
             .build();
 
@@ -33,7 +48,7 @@ public final class ModCreativeTabs
                 COLD_SWEAT_TAB_KEY,
                 COLD_SWEAT_TAB
         );
-        ColdSweatFabric.LOGGER.info("Registering Cold Sweat creative tab foundation.");
+        ColdSweatFabric.LOGGER.info("Registering Cold Sweat creative tab items.");
     }
 
     private ModCreativeTabs()
