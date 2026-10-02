@@ -28,6 +28,7 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/fabric/**'
             include 'com/momosoftworks/coldsweat/core/init/ModSounds.java'
             include 'com/momosoftworks/coldsweat/core/init/ModParticleTypes.java'
+            include 'com/momosoftworks/coldsweat/core/init/ModAttributes.java'
         }
 
         resources {
