@@ -14,6 +14,7 @@ import net.minecraft.world.entity.LivingEntity;
 
 import java.util.Collection;
 import java.util.EnumMap;
+import java.util.Map;
 
 /**
  * General helper class for temperature-related actions.
@@ -124,6 +125,63 @@ public final class Temperature
         return EntityTempManager.getTemperatureData(entity)
                 .map(TemperatureData::copyTraits)
                 .orElseGet(() -> new EnumMap<>(Trait.class));
+    }
+
+    /**
+     * Apply multiple temperature-trait mutations with one attachment write.
+     *
+     * Every changed trait still passes through TemperatureChangedEvent, but the
+     * final immutable TemperatureData is attached only once. This matters once
+     * the live runtime starts updating WORLD, CORE, thresholds, dampening, and
+     * RATE every server tick.
+     */
+    public static void setAll(
+            LivingEntity entity,
+            Map<Trait, Double> values
+    )
+    {
+        EntityTempManager.getTemperatureData(entity).ifPresent(data ->
+        {
+            TemperatureData updated = data;
+
+            for (Map.Entry<Trait, Double> entry : values.entrySet())
+            {
+                Trait trait = entry.getKey();
+                double oldValue = updated.getTrait(trait);
+                double proposedValue = entry.getValue();
+
+                if (Double.compare(oldValue, proposedValue) == 0)
+                {
+                    continue;
+                }
+
+                TemperatureChangedEvent event =
+                        TemperatureChangedEvent.fire(
+                                entity,
+                                trait,
+                                oldValue,
+                                proposedValue
+                        );
+
+                if (event.isCanceled())
+                {
+                    continue;
+                }
+
+                double newValue = event.getTemperature();
+                if (Double.compare(oldValue, newValue) == 0)
+                {
+                    continue;
+                }
+
+                updated = updated.withTrait(trait, newValue);
+            }
+
+            if (updated != data)
+            {
+                EntityTempManager.setTemperatureData(entity, updated);
+            }
+        });
     }
 
     /**

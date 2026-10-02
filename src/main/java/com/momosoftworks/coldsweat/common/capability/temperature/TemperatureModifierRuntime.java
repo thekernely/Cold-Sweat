@@ -8,10 +8,12 @@ import com.momosoftworks.coldsweat.common.capability.handler.EntityTempManager;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.minecraft.world.Difficulty;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -193,19 +195,218 @@ public final class TemperatureModifierRuntime
                 modifiers
         );
 
-        double worldTemperature = EntityTempManager.resolveAttributeValue(
-                entity,
-                Temperature.Trait.WORLD,
-                modifiedWorldTemperature
-        );
+        double worldTemperature =
+                EntityTempManager.resolveAttributeValue(
+                        entity,
+                        Temperature.Trait.WORLD,
+                        modifiedWorldTemperature
+                );
 
-        Temperature.set(
+        tickCoreTemperature(
                 entity,
-                Temperature.Trait.WORLD,
                 worldTemperature
         );
 
         tickModifierLifecycle(entity, modifiers);
+    }
+
+    /**
+     * Live player body-temperature runtime.
+     *
+     * Environmental WORLD temperature is now meaningful enough to drive CORE.
+     * Damage/effects are deliberately not applied here yet; this slice only
+     * restores the underlying trait evolution and keeps it synchronized.
+     */
+    private static void tickCoreTemperature(
+            LivingEntity entity,
+            double worldTemperature
+    )
+    {
+        double storedCore =
+                Temperature.get(
+                        entity,
+                        Temperature.Trait.CORE
+                );
+
+        double baseTemperature =
+                EntityTempManager.resolveAttributeValue(
+                        entity,
+                        Temperature.Trait.BASE,
+                        0.0
+                );
+
+        double freezingPoint =
+                EntityTempManager.resolveAttributeValue(
+                        entity,
+                        Temperature.Trait.FREEZING_POINT,
+                        TemperatureRuntime.DEFAULT_FREEZING_POINT
+                );
+
+        double burningPoint =
+                EntityTempManager.resolveAttributeValue(
+                        entity,
+                        Temperature.Trait.BURNING_POINT,
+                        TemperatureRuntime.DEFAULT_BURNING_POINT
+                );
+
+        double coldDampening =
+                EntityTempManager.resolveAttributeValue(
+                        entity,
+                        Temperature.Trait.COLD_DAMPENING,
+                        0.0
+                );
+
+        double heatDampening =
+                EntityTempManager.resolveAttributeValue(
+                        entity,
+                        Temperature.Trait.HEAT_DAMPENING,
+                        0.0
+                );
+
+        double coldResistance =
+                EntityTempManager.resolveAttributeValue(
+                        entity,
+                        Temperature.Trait.COLD_RESISTANCE,
+                        0.0
+                );
+
+        double heatResistance =
+                EntityTempManager.resolveAttributeValue(
+                        entity,
+                        Temperature.Trait.HEAT_RESISTANCE,
+                        0.0
+                );
+
+        int worldTemperatureSign =
+                TemperatureRuntime.getWorldTemperatureSign(
+                        worldTemperature,
+                        freezingPoint,
+                        burningPoint
+                );
+
+        boolean creative =
+                entity instanceof Player player
+                        && player.isCreative();
+
+        boolean peaceful =
+                entity.level().getDifficulty()
+                        == Difficulty.PEACEFUL;
+
+        boolean immuneToPressure =
+                creative
+                        || entity.isSpectator()
+                        || peaceful;
+
+        double coreTemperature = storedCore;
+        double rate = 0.0;
+
+        if (worldTemperatureSign != 0
+                && !immuneToPressure)
+        {
+            double rawRate =
+                    TemperatureRuntime.calculateTemperatureRate(
+                            worldTemperature,
+                            freezingPoint,
+                            burningPoint,
+                            TemperatureRuntime.DEFAULT_TEMP_RATE,
+                            coldDampening,
+                            heatDampening
+                    );
+
+            rate =
+                    EntityTempManager.resolveAttributeValue(
+                            entity,
+                            Temperature.Trait.RATE,
+                            rawRate
+                    );
+
+            coreTemperature += rate;
+        }
+
+        double equilibrium =
+                TemperatureRuntime.calculateEquilibriumDelta(
+                        coreTemperature,
+                        storedCore,
+                        worldTemperature,
+                        freezingPoint,
+                        burningPoint,
+                        TemperatureRuntime.DEFAULT_TEMP_RATE,
+                        coldDampening,
+                        heatDampening,
+                        peaceful
+                );
+
+        int coreDeltaSign =
+                TemperatureRuntime.sign(
+                        coreTemperature - storedCore
+                );
+
+        int equilibriumSign =
+                TemperatureRuntime.sign(equilibrium);
+
+        /*
+         * Match upstream: equilibrium must not fight a CORE modifier/rate that
+         * is currently driving temperature in the opposite direction.
+         */
+        if (coreDeltaSign == 0
+                || coreDeltaSign == equilibriumSign)
+        {
+            coreTemperature += equilibrium;
+        }
+
+        EnumMap<Temperature.Trait, Double> values =
+                new EnumMap<>(Temperature.Trait.class);
+
+        values.put(
+                Temperature.Trait.CORE,
+                TemperatureRuntime.clamp(
+                        coreTemperature,
+                        -150.0,
+                        150.0
+                )
+        );
+        values.put(
+                Temperature.Trait.BASE,
+                TemperatureRuntime.clamp(
+                        baseTemperature,
+                        -150.0,
+                        150.0
+                )
+        );
+        values.put(
+                Temperature.Trait.WORLD,
+                worldTemperature
+        );
+        values.put(
+                Temperature.Trait.BURNING_POINT,
+                burningPoint
+        );
+        values.put(
+                Temperature.Trait.FREEZING_POINT,
+                freezingPoint
+        );
+        values.put(
+                Temperature.Trait.COLD_RESISTANCE,
+                coldResistance
+        );
+        values.put(
+                Temperature.Trait.HEAT_RESISTANCE,
+                heatResistance
+        );
+        values.put(
+                Temperature.Trait.COLD_DAMPENING,
+                coldDampening
+        );
+        values.put(
+                Temperature.Trait.HEAT_DAMPENING,
+                heatDampening
+        );
+        values.put(
+                Temperature.Trait.RATE,
+                rate
+        );
+
+        Temperature.setAll(entity, values);
     }
 
     private static void tickModifierLifecycle(
