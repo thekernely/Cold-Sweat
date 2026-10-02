@@ -13,6 +13,8 @@ public final class TemperatureEffectSettings
 
     public static final double COLD_MOVEMENT_SLOWDOWN = 0.5;
     public static final double COLD_MINING_IMPAIRMENT = 0.5;
+    public static final double HEARTS_FREEZING_PERCENTAGE = 0.5;
+    public static final double COLD_KNOCKBACK_REDUCTION = 0.5;
 
     private TemperatureEffectSettings()
     {

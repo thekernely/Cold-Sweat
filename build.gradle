@@ -76,6 +76,7 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/config/TemperatureDamageSettings.java'
             include 'com/momosoftworks/coldsweat/config/TemperatureEffectSettings.java'
             include 'com/momosoftworks/coldsweat/common/capability/temperature/TemperatureEffectRuntime.java'
+            include 'com/momosoftworks/coldsweat/mixin/LivingEntityMixin.java'
             include 'com/momosoftworks/coldsweat/util/world/WorldTemperatureUtil.java'
             include 'com/momosoftworks/coldsweat/config/WorldTemperatureSettings.java'
             include 'com/momosoftworks/coldsweat/common/capability/temperature/TemperatureModifierRuntime.java'
@@ -84,6 +85,7 @@ sourceSets {
 
         resources {
             include 'fabric.mod.json'
+            include 'cold_sweat.mixins.json'
             include 'assets/cold_sweat/sounds.json'
             include 'assets/cold_sweat/sounds/**'
             include 'assets/cold_sweat/particles/**'

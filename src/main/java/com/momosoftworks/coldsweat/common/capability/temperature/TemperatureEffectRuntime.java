@@ -123,6 +123,102 @@ public final class TemperatureEffectRuntime
         return rawFactor * (1.0 - resistance);
     }
 
+    /**
+     * Server-side equivalent of upstream FreezeHealingEffect.
+     *
+     * At full cold effect, the top configured percentage of max health cannot
+     * be restored. Existing health is never forcibly removed by this hook; it
+     * only caps incoming healing.
+     */
+    public static float limitHealing(
+            LivingEntity entity,
+            float healAmount
+    )
+    {
+        if (healAmount <= 0.0F)
+        {
+            return healAmount;
+        }
+
+        double effectFactor =
+                getColdEffectFactor(entity);
+
+        if (effectFactor <= 0.0
+                || TemperatureEffectSettings.HEARTS_FREEZING_PERCENTAGE <= 0.0)
+        {
+            return healAmount;
+        }
+
+        float maxHealth = entity.getMaxHealth();
+
+        float maxFrozenHealth =
+                (float) (
+                        maxHealth
+                        * TemperatureEffectSettings.HEARTS_FREEZING_PERCENTAGE
+                );
+
+        float frozenHealth =
+                Math.round(
+                        (float) (
+                                maxFrozenHealth
+                                * effectFactor
+                        )
+                );
+
+        float unfrozenHealth =
+                maxHealth - frozenHealth;
+
+        return Math.max(
+                0.0F,
+                Math.min(
+                        healAmount,
+                        Math.max(
+                                0.0F,
+                                unfrozenHealth
+                                - entity.getHealth()
+                        )
+                )
+        );
+    }
+
+    /**
+     * Server-side equivalent of upstream FreezeKnockbackEffect.
+     *
+     * Upstream keys the penalty from the attacker that most recently hurt the
+     * target, so the mixin passes that attacker here rather than evaluating the
+     * knocked-back target.
+     */
+    public static double reduceOutgoingKnockback(
+            LivingEntity attacker,
+            double strength
+    )
+    {
+        if (attacker == null
+                || strength <= 0.0
+                || TemperatureEffectSettings.COLD_KNOCKBACK_REDUCTION <= 0.0)
+        {
+            return strength;
+        }
+
+        double effectFactor =
+                getColdEffectFactor(attacker);
+
+        if (effectFactor <= 0.0)
+        {
+            return strength;
+        }
+
+        double reduction =
+                clamp(
+                        TemperatureEffectSettings.COLD_KNOCKBACK_REDUCTION
+                                * effectFactor,
+                        0.0,
+                        1.0
+                );
+
+        return strength * (1.0 - reduction);
+    }
+
     private static void applyMovementPenalty(
             Player player,
             double effectFactor
