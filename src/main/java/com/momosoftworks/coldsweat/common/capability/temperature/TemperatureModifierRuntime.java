@@ -62,7 +62,7 @@ public final class TemperatureModifierRuntime
      * Current standalone player WORLD chain, preserving upstream ordering and
      * player tick rates for the modifiers already ported:
      *
-     * Biome -> Shade -> Elevation -> Blocks
+     * Biome -> Shade -> Elevation -> Cave Biomes -> Blocks
      */
     public static void installDefaultWorldModifiers(LivingEntity entity)
     {
@@ -78,6 +78,9 @@ public final class TemperatureModifierRuntime
         );
         modifiers.add(
                 createRegistered("elevation").tickRate(20)
+        );
+        modifiers.add(
+                createRegistered("cave_biomes").tickRate(20)
         );
         modifiers.add(
                 createRegistered("blocks").tickRate(5)

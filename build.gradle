@@ -66,6 +66,7 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/core/init/TempModifierInit.java'
             include 'com/momosoftworks/coldsweat/api/temperature/modifier/BiomeTempModifier.java'
             include 'com/momosoftworks/coldsweat/api/temperature/modifier/ElevationTempModifier.java'
+            include 'com/momosoftworks/coldsweat/api/temperature/modifier/CaveBiomeTempModifier.java'
             include 'com/momosoftworks/coldsweat/api/temperature/modifier/BlockTempModifier.java'
             include 'com/momosoftworks/coldsweat/api/temperature/modifier/ShadeTempModifier.java'
             include 'com/momosoftworks/coldsweat/api/temperature/modifier/WaterTempModifier.java'
@@ -84,6 +85,7 @@ sourceSets {
             include 'assets/cold_sweat/textures/particle/**'
             include 'assets/cold_sweat/textures/mob_effect/**'
             include 'assets/cold_sweat/lang/**'
+            include 'data/c/tags/worldgen/biome/**'
         }
     }
 }
