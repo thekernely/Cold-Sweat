@@ -1,82 +1,42 @@
 package com.momosoftworks.coldsweat.core.init;
 
-import com.momosoftworks.coldsweat.ColdSweat;
-import com.momosoftworks.coldsweat.common.block.*;
-import com.momosoftworks.coldsweat.common.item.*;
-import net.minecraft.world.food.FoodProperties;
-import net.minecraft.world.item.*;
-import net.neoforged.neoforge.common.DeferredSpawnEggItem;
-import net.neoforged.neoforge.registries.DeferredItem;
-import net.neoforged.neoforge.registries.DeferredRegister;
+import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.item.Item;
 
-public class ModItems
+public final class ModItems
 {
-    public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(ColdSweat.MOD_ID);
+    /*
+     * Start the item registry with the three dependency-free material items.
+     * Gameplay-heavy items (waterskins, thermometer, lamp, armor, block items,
+     * spawn eggs, etc.) are added in later slices alongside their dependencies.
+     */
+    public static final Item GOAT_FUR = registerSimple("goat_fur");
+    public static final Item HOGLIN_HIDE = registerSimple("hoglin_hide");
+    public static final Item CHAMELEON_MOLT = registerSimple("chameleon_molt");
 
-    // Items
-    public static final DeferredItem<Item> WATERSKIN = ITEMS.register("waterskin", WaterskinItem::new);
-    public static final DeferredItem<Item> FILLED_WATERSKIN = ITEMS.register("filled_waterskin", FilledWaterskinItem::new);
-    public static final DeferredItem<Item> MINECART_INSULATION = ITEMS.register("minecart_insulation", MinecartInsulationItem::new);
-    public static final DeferredItem<Item> THERMOMETER = ITEMS.register("thermometer", () ->
-            new ThermometerItem(new Item.Properties().rarity(Rarity.UNCOMMON).stacksTo(1)));
-    public static final DeferredItem<Item> SOULSPRING_LAMP = ITEMS.register("soulspring_lamp", SoulspringLampItem::new);
-    public static final DeferredItem<Item> GOAT_FUR = ITEMS.register("goat_fur", () ->
-            new Item(new Item.Properties()));
-    public static final DeferredItem<Item> HOGLIN_HIDE = ITEMS.register("hoglin_hide", () ->
-            new Item(new Item.Properties()));
-    public static final DeferredItem<Item> INSULATED_MINECART = ITEMS.register("insulated_minecart", () ->
-            new InsulatedMinecartItem(new Item.Properties().stacksTo(1)));
-    public static final DeferredItem<Item> CHAMELEON_MOLT = ITEMS.register("chameleon_molt", () ->
-            new Item(new Item.Properties()));
-    public static final DeferredItem<Item> SLUSH_BUCKET = ITEMS.register("slush_bucket", () ->
-            new BucketItem(ModFluids.SLUSH.value(), new Item.Properties().stacksTo(1).craftRemainder(Items.BUCKET)));
+    private static Item registerSimple(String path)
+    {
+        Identifier id = ColdSweatFabric.id(path);
+        ResourceKey<Item> key = ResourceKey.create(Registries.ITEM, id);
 
-    static final Item.Properties ARMOR_PROPERTIES = new Item.Properties().stacksTo(1);
+        return Registry.register(
+                BuiltInRegistries.ITEM,
+                key,
+                new Item(new Item.Properties().setId(key))
+        );
+    }
 
-    // Armor Items
-    public static final DeferredItem<Item> HOGLIN_HELMET = ITEMS.register("hoglin_helmet", () ->
-            new HoglinArmorItem(ModArmorMaterials.HOGLIN, ArmorItem.Type.HELMET, ARMOR_PROPERTIES.durability(ArmorItem.Type.HELMET.getDurability(14))));
-    public static final DeferredItem<Item> HOGLIN_CHESTPLATE = ITEMS.register("hoglin_chestplate", () ->
-            new HoglinArmorItem(ModArmorMaterials.HOGLIN, ArmorItem.Type.CHESTPLATE, ARMOR_PROPERTIES.durability(ArmorItem.Type.CHESTPLATE.getDurability(14))));
-    public static final DeferredItem<Item> HOGLIN_LEGGINGS = ITEMS.register("hoglin_leggings", () ->
-            new HoglinArmorItem(ModArmorMaterials.HOGLIN, ArmorItem.Type.LEGGINGS, ARMOR_PROPERTIES.durability(ArmorItem.Type.LEGGINGS.getDurability(14))));
-    public static final DeferredItem<Item> HOGLIN_BOOTS = ITEMS.register("hoglin_boots", () ->
-            new HoglinArmorItem(ModArmorMaterials.HOGLIN, ArmorItem.Type.BOOTS, ARMOR_PROPERTIES.durability(ArmorItem.Type.BOOTS.getDurability(14))));
+    public static void initialize()
+    {
+        ColdSweatFabric.LOGGER.info("Registering Cold Sweat simple items.");
+    }
 
-    public static final DeferredItem<Item> GOAT_FUR_HELMET = ITEMS.register("goat_fur_helmet", () ->
-            new GoatArmorItem(ModArmorMaterials.GOAT_FUR, ArmorItem.Type.HELMET, ARMOR_PROPERTIES.durability(ArmorItem.Type.HELMET.getDurability(10))));
-    public static final DeferredItem<Item> GOAT_FUR_CHESTPLATE = ITEMS.register("goat_fur_chestplate", () ->
-            new GoatArmorItem(ModArmorMaterials.GOAT_FUR, ArmorItem.Type.CHESTPLATE, ARMOR_PROPERTIES.durability(ArmorItem.Type.CHESTPLATE.getDurability(10))));
-    public static final DeferredItem<Item> GOAT_FUR_LEGGINGS = ITEMS.register("goat_fur_leggings", () ->
-            new GoatArmorItem(ModArmorMaterials.GOAT_FUR, ArmorItem.Type.LEGGINGS, ARMOR_PROPERTIES.durability(ArmorItem.Type.LEGGINGS.getDurability(10))));
-    public static final DeferredItem<Item> GOAT_FUR_BOOTS = ITEMS.register("goat_fur_boots", () ->
-            new GoatArmorItem(ModArmorMaterials.GOAT_FUR, ArmorItem.Type.BOOTS, ARMOR_PROPERTIES.durability(ArmorItem.Type.BOOTS.getDurability(10))));
-
-    public static final DeferredItem<Item> CHAMELEON_HELMET = ITEMS.register("chameleon_helmet", () ->
-            new ChameleonArmorItem(ModArmorMaterials.CHAMELEON, ArmorItem.Type.HELMET, ARMOR_PROPERTIES.durability(ArmorItem.Type.HELMET.getDurability(12))));
-    public static final DeferredItem<Item> CHAMELEON_CHESTPLATE = ITEMS.register("chameleon_chestplate", () ->
-            new ChameleonArmorItem(ModArmorMaterials.CHAMELEON, ArmorItem.Type.CHESTPLATE, ARMOR_PROPERTIES.durability(ArmorItem.Type.CHESTPLATE.getDurability(12))));
-    public static final DeferredItem<Item> CHAMELEON_LEGGINGS = ITEMS.register("chameleon_leggings", () ->
-            new ChameleonArmorItem(ModArmorMaterials.CHAMELEON, ArmorItem.Type.LEGGINGS, ARMOR_PROPERTIES.durability(ArmorItem.Type.LEGGINGS.getDurability(12))));
-    public static final DeferredItem<Item> CHAMELEON_BOOTS = ITEMS.register("chameleon_boots", () ->
-            new ChameleonArmorItem(ModArmorMaterials.CHAMELEON, ArmorItem.Type.BOOTS, ARMOR_PROPERTIES.durability(ArmorItem.Type.BOOTS.getDurability(12))));
-
-    // Block Items
-    public static final DeferredItem<BlockItem> BOILER = ITEMS.register("boiler", () -> new BlockItem(ModBlocks.BOILER.get(), BoilerBlock.getItemProperties()));
-    public static final DeferredItem<BlockItem> ICEBOX = ITEMS.register("icebox", () -> new BlockItem(ModBlocks.ICEBOX.get(), IceboxBlock.getItemProperties()));
-    public static final DeferredItem<BlockItem> SEWING_TABLE = ITEMS.register("sewing_table", () -> new BlockItem(ModBlocks.SEWING_TABLE.get(), SewingTableBlock.getItemProperties()));
-    public static final DeferredItem<BlockItem> HEARTH = ITEMS.register("hearth", () -> new BlockItem(ModBlocks.HEARTH_BOTTOM.get(), HearthBottomBlock.getItemProperties()));
-    public static final DeferredItem<BlockItem> THERMOLITH = ITEMS.register("thermolith", () -> new BlockItem(ModBlocks.THERMOLITH.get(), ThermolithBlock.getItemProperties()));
-    public static final DeferredItem<BlockItem> SOUL_SPROUT = ITEMS.register("soul_sprout", () -> new SoulSproutItem(ModBlocks.SOUL_STALK.get(),
-                                                                                                                     SoulStalkBlock.getItemProperties().food(new FoodProperties.Builder()
-                                                                                                                                                             .nutrition(3)
-                                                                                                                                                             .saturationModifier(0.5f)
-                                                                                                                                                             .alwaysEdible()
-                                                                                                                                                             .fast()
-                                                                                                                                                             .build())));
-    public static final DeferredItem<BlockItem> SMOKESTACK = ITEMS.register("smokestack", () -> new BlockItem(ModBlocks.SMOKESTACK.get(), SmokestackBlock.getItemProperties()));
-
-    // Spawn Eggs
-    public static final DeferredItem<DeferredSpawnEggItem> CHAMELEON_SPAWN_EGG = ITEMS.register("chameleon_spawn_egg", () ->
-            new DeferredSpawnEggItem(ModEntities.CHAMELEON, 0x82C841, 0x1C9170, new Item.Properties()));
+    private ModItems()
+    {
+    }
 }
