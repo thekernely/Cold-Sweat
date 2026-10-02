@@ -74,6 +74,8 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/api/temperature/modifier/FreezingTempModifier.java'
             include 'com/momosoftworks/coldsweat/config/WaterExposureSettings.java'
             include 'com/momosoftworks/coldsweat/config/TemperatureDamageSettings.java'
+            include 'com/momosoftworks/coldsweat/config/TemperatureEffectSettings.java'
+            include 'com/momosoftworks/coldsweat/common/capability/temperature/TemperatureEffectRuntime.java'
             include 'com/momosoftworks/coldsweat/util/world/WorldTemperatureUtil.java'
             include 'com/momosoftworks/coldsweat/config/WorldTemperatureSettings.java'
             include 'com/momosoftworks/coldsweat/common/capability/temperature/TemperatureModifierRuntime.java'

@@ -515,6 +515,7 @@ public final class TemperatureModifierRuntime
 
         Temperature.setAll(entity, values);
         tickTemperatureDamage(entity);
+        TemperatureEffectRuntime.applyServerEffects(entity);
     }
 
     /**
@@ -730,6 +731,8 @@ public final class TemperatureModifierRuntime
 
     private static void removeEntity(LivingEntity entity)
     {
+        TemperatureEffectRuntime.clear(entity);
+
         List<TempModifier> worldRemoved =
                 WORLD_MODIFIERS.remove(entity);
 
