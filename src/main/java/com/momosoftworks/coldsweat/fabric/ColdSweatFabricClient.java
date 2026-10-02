@@ -5,6 +5,7 @@ import com.momosoftworks.coldsweat.common.container.HearthMenu;
 import com.momosoftworks.coldsweat.common.container.IceboxMenu;
 import com.momosoftworks.coldsweat.core.init.ModMenus;
 import com.momosoftworks.coldsweat.core.init.ModFluids;
+import com.momosoftworks.coldsweat.fabric.client.TemperatureHudRenderer;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.render.fluid.v1.FluidRenderingRegistry;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -26,6 +27,7 @@ public final class ColdSweatFabricClient implements ClientModInitializer
         MenuScreens.register(ModMenus.HEARTH, HearthScreen::new);
         MenuScreens.register(ModMenus.BOILER, BoilerScreen::new);
         MenuScreens.register(ModMenus.ICEBOX, IceboxScreen::new);
+        TemperatureHudRenderer.register();
 
         FluidModel.Unbaked slushModel = new FluidModel.Unbaked(
                 new Material(
