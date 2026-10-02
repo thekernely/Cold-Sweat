@@ -2,6 +2,7 @@ package com.momosoftworks.coldsweat.fabric;
 
 import com.momosoftworks.coldsweat.common.capability.handler.EntityTempManager;
 import com.momosoftworks.coldsweat.common.capability.temperature.TemperatureModifierRuntime;
+import com.momosoftworks.coldsweat.core.init.BlockTempInit;
 import com.momosoftworks.coldsweat.core.init.ModAdvancementTriggers;
 import com.momosoftworks.coldsweat.core.init.ModArmorMaterials;
 import com.momosoftworks.coldsweat.core.init.ModAttributes;
@@ -48,6 +49,7 @@ public final class ColdSweatFabric implements ModInitializer
         ModDataAttachments.initialize();
         EntityTempManager.initialize();
         TempModifierInit.initialize();
+        BlockTempInit.initialize();
         TemperatureModifierRuntime.initialize();
         ModGameRules.initialize();
     }

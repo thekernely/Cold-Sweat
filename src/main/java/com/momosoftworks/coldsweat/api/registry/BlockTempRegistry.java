@@ -1,65 +1,79 @@
 package com.momosoftworks.coldsweat.api.registry;
 
-import com.google.common.collect.Multimap;
-import com.momosoftworks.coldsweat.ColdSweat;
 import com.momosoftworks.coldsweat.api.temperature.block_temp.BlockTemp;
-import com.momosoftworks.coldsweat.api.temperature.block_temp.ConfiguredBlockTemp;
-import com.momosoftworks.coldsweat.util.math.RegistryMultiMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
-public class BlockTempRegistry
+/**
+ * Fabric-native logical registry for block temperature sources.
+ */
+public final class BlockTempRegistry
 {
-    public static final List<BlockTemp> BLOCK_TEMPS = new ArrayList<>();
-    public static final Multimap<Block, BlockTemp> MAPPED_BLOCKS = new RegistryMultiMap<>();
+    private static final List<BlockTemp> BLOCK_TEMPS =
+            new ArrayList<>();
+
+    private static final Map<Block, List<BlockTemp>> MAPPED_BLOCKS =
+            new IdentityHashMap<>();
+
     public static final BlockTemp DEFAULT_BLOCK_TEMP = new BlockTemp()
     {
         @Override
-        public double getTemperature(Level level, LivingEntity entity, BlockState state, BlockPos pos, double distance)
-        {   return 0;
+        public double getTemperature(
+                Level level,
+                LivingEntity entity,
+                BlockState state,
+                BlockPos pos,
+                double distance
+        )
+        {
+            return 0.0;
         }
     };
 
     public static synchronized void register(BlockTemp blockTemp)
-    {   register(blockTemp, false);
+    {
+        register(blockTemp, false);
     }
 
     public static synchronized void registerFirst(BlockTemp blockTemp)
-    {   register(blockTemp, true);
+    {
+        register(blockTemp, true);
     }
 
-    private static synchronized void register(BlockTemp blockTemp, boolean front)
+    private static void register(BlockTemp blockTemp, boolean first)
     {
-        blockTemp.getAffectedBlocks().forEach(block ->
+        if (blockTemp == null)
         {
-            Collection<BlockTemp> blockTemps = MAPPED_BLOCKS.get(block);
-            if (!blockTemps.isEmpty() && blockTemp instanceof ConfiguredBlockTemp cfg)
-            {
-                for (BlockTemp temp : blockTemps)
-                {
-                    if (temp instanceof ConfiguredBlockTemp cfg2 && cfg.equals(cfg2))
-                    {   ColdSweat.LOGGER.error("Skipping duplicate BlockTemp for \"{}\" as an identical one is already registered", block);
-                        ColdSweat.LOGGER.debug("{}", cfg);
-                        return;
-                    }
-                }
-            }
-            if (front)
-            {
-                List<BlockTemp> blockTempList = new ArrayList<>(blockTemps);
-                blockTempList.add(0, blockTemp);
-                blockTemps.clear();
-                blockTemps.addAll(blockTempList);
-            }
-            else blockTemps.add(blockTemp);
-        });
-        if (front) BLOCK_TEMPS.add(0, blockTemp);
-        else BLOCK_TEMPS.add(blockTemp);
+            throw new IllegalArgumentException(
+                    "BlockTemp cannot be null"
+            );
+        }
+
+        if (first)
+        {
+            BLOCK_TEMPS.add(0, blockTemp);
+        }
+        else
+        {
+            BLOCK_TEMPS.add(blockTemp);
+        }
+
+        /*
+         * Registration changes can affect fallback class matching, so the
+         * lookup cache is invalidated just like a registry rebuild.
+         */
+        MAPPED_BLOCKS.clear();
     }
 
     public static synchronized void flush()
@@ -68,28 +82,58 @@ public class BlockTempRegistry
         BLOCK_TEMPS.clear();
     }
 
-    public static Collection<BlockTemp> getBlockTempsFor(BlockState blockstate)
+    public static List<BlockTemp> getEntries()
     {
-        if (blockstate.isAir()) return List.of(DEFAULT_BLOCK_TEMP);
-
-        Block block = blockstate.getBlock();
-        Collection<BlockTemp> blockTemps = MAPPED_BLOCKS.get(block);
-        if (blockTemps.isEmpty())
-        {
-            blockTemps = new ArrayList<>(BLOCK_TEMPS.stream().filter(bt -> bt.hasBlock(block)).toList());
-            // If this block has no associated BlockTemps, give default implementation
-            if (blockTemps.isEmpty())
-            {   blockTemps.add(DEFAULT_BLOCK_TEMP);
-            }
-            MAPPED_BLOCKS.putAll(block, blockTemps);
-            return blockTemps;
-        }
-        return blockTemps;
+        return List.copyOf(BLOCK_TEMPS);
     }
 
-    public static Optional<BlockTemp> getFirstBlockTempFor(BlockState blockstate, Level level, BlockPos pos)
+    public static Collection<BlockTemp> getBlockTempsFor(BlockState state)
     {
-        Collection<BlockTemp> blockTemps = getBlockTempsFor(blockstate);
-        return blockTemps.stream().filter(temp -> temp.isValid(level, pos, blockstate)).findFirst();
+        if (state.isAir())
+        {
+            return List.of(DEFAULT_BLOCK_TEMP);
+        }
+
+        Block block = state.getBlock();
+
+        List<BlockTemp> cached = MAPPED_BLOCKS.get(block);
+        if (cached != null)
+        {
+            return cached;
+        }
+
+        LinkedHashSet<BlockTemp> matches = new LinkedHashSet<>();
+
+        for (BlockTemp blockTemp : BLOCK_TEMPS)
+        {
+            if (blockTemp.hasBlock(block))
+            {
+                matches.add(blockTemp);
+            }
+        }
+
+        List<BlockTemp> resolved =
+                matches.isEmpty()
+                        ? List.of(DEFAULT_BLOCK_TEMP)
+                        : List.copyOf(matches);
+
+        MAPPED_BLOCKS.put(block, resolved);
+        return resolved;
+    }
+
+    public static Optional<BlockTemp> getFirstBlockTempFor(
+            BlockState state,
+            Level level,
+            BlockPos pos
+    )
+    {
+        return getBlockTempsFor(state)
+                .stream()
+                .filter(temp -> temp.isValid(level, pos, state))
+                .findFirst();
+    }
+
+    private BlockTempRegistry()
+    {
     }
 }
