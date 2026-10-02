@@ -70,10 +70,30 @@ public final class BlockTempRegistry
         }
 
         /*
-         * Registration changes can affect fallback class matching, so the
-         * lookup cache is invalidated just like a registry rebuild.
+         * Upstream eagerly maps declared affected blocks while still allowing
+         * hasBlock(...) fallback matching for dynamic implementations.
+         * Rebuild here so cached misses are invalidated when registration
+         * changes.
          */
+        rebuildMappedBlocks();
+    }
+
+    private static void rebuildMappedBlocks()
+    {
         MAPPED_BLOCKS.clear();
+
+        for (BlockTemp blockTemp : BLOCK_TEMPS)
+        {
+            for (Block block : blockTemp.getAffectedBlocks())
+            {
+                MAPPED_BLOCKS
+                        .computeIfAbsent(
+                                block,
+                                key -> new ArrayList<>()
+                        )
+                        .add(blockTemp);
+            }
+        }
     }
 
     public static synchronized void flush()
@@ -96,12 +116,16 @@ public final class BlockTempRegistry
 
         Block block = state.getBlock();
 
-        List<BlockTemp> cached = MAPPED_BLOCKS.get(block);
-        if (cached != null)
+        List<BlockTemp> mapped = MAPPED_BLOCKS.get(block);
+        if (mapped != null && !mapped.isEmpty())
         {
-            return cached;
+            return List.copyOf(mapped);
         }
 
+        /*
+         * Preserve upstream's fallback for sources whose hasBlock(...) logic is
+         * broader than their declared block set.
+         */
         LinkedHashSet<BlockTemp> matches = new LinkedHashSet<>();
 
         for (BlockTemp blockTemp : BLOCK_TEMPS)
@@ -117,7 +141,11 @@ public final class BlockTempRegistry
                         ? List.of(DEFAULT_BLOCK_TEMP)
                         : List.copyOf(matches);
 
-        MAPPED_BLOCKS.put(block, resolved);
+        MAPPED_BLOCKS.put(
+                block,
+                new ArrayList<>(resolved)
+        );
+
         return resolved;
     }
 

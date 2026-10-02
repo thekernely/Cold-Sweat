@@ -2,6 +2,7 @@ package com.momosoftworks.coldsweat.core.init;
 
 import com.momosoftworks.coldsweat.api.registry.BlockTempRegistry;
 import com.momosoftworks.coldsweat.api.temperature.block_temp.FurnaceBlockTemp;
+import com.momosoftworks.coldsweat.api.temperature.block_temp.NetherPortalBlockTemp;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
 
 /**
@@ -15,6 +16,9 @@ public final class BlockTempInit
 
         BlockTempRegistry.register(
                 new FurnaceBlockTemp()
+        );
+        BlockTempRegistry.register(
+                new NetherPortalBlockTemp()
         );
 
         ColdSweatFabric.LOGGER.info(

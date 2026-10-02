@@ -194,16 +194,25 @@ public class BlockTempModifier extends TempModifier
 
             for (BlockEffectAccumulator accumulator : totals.values())
             {
-                if (result < accumulator.minTemperature
-                        || result > accumulator.maxTemperature)
+                double minTemperature = Math.min(
+                        accumulator.minTemperature,
+                        accumulator.maxTemperature
+                );
+                double maxTemperature = Math.max(
+                        accumulator.minTemperature,
+                        accumulator.maxTemperature
+                );
+
+                if (result < minTemperature
+                        || result > maxTemperature)
                 {
                     continue;
                 }
 
                 result = clamp(
                         result + accumulator.totalEffect,
-                        accumulator.minTemperature,
-                        accumulator.maxTemperature
+                        minTemperature,
+                        maxTemperature
                 );
             }
 
@@ -235,6 +244,17 @@ public class BlockTempModifier extends TempModifier
             double max
     )
     {
+        /*
+         * Match Cold Sweat's CSMath range semantics: callers are allowed to
+         * provide reversed bounds and they are normalized before comparison.
+         */
+        if (min > max)
+        {
+            double swap = min;
+            min = max;
+            max = swap;
+        }
+
         return Math.max(min, Math.min(max, value));
     }
 

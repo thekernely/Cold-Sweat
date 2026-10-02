@@ -59,6 +59,7 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/api/registry/BlockTempRegistry.java'
             include 'com/momosoftworks/coldsweat/api/temperature/block_temp/BlockTemp.java'
             include 'com/momosoftworks/coldsweat/api/temperature/block_temp/FurnaceBlockTemp.java'
+            include 'com/momosoftworks/coldsweat/api/temperature/block_temp/NetherPortalBlockTemp.java'
             include 'com/momosoftworks/coldsweat/core/init/BlockTempInit.java'
             include 'com/momosoftworks/coldsweat/core/init/TempModifierInit.java'
             include 'com/momosoftworks/coldsweat/api/temperature/modifier/BiomeTempModifier.java'
