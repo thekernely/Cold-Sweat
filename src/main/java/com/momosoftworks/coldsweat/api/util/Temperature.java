@@ -2,6 +2,7 @@ package com.momosoftworks.coldsweat.api.util;
 
 import com.mojang.serialization.Codec;
 import com.momosoftworks.coldsweat.api.event.common.temperautre.TemperatureChangedEvent;
+import com.momosoftworks.coldsweat.api.temperature.modifier.TempModifier;
 import com.momosoftworks.coldsweat.common.capability.handler.EntityTempManager;
 import com.momosoftworks.coldsweat.common.capability.temperature.TemperatureData;
 import io.netty.buffer.ByteBuf;
@@ -11,14 +12,11 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.util.StringRepresentable;
 import net.minecraft.world.entity.LivingEntity;
 
+import java.util.Collection;
 import java.util.EnumMap;
 
 /**
  * General helper class for temperature-related actions.
- *
- * M3 is restoring this class incrementally. Unit/trait behavior and persistent
- * synchronized entity trait access are live; modifiers are restored in later
- * slices.
  */
 public final class Temperature
 {
@@ -126,6 +124,61 @@ public final class Temperature
         return EntityTempManager.getTemperatureData(entity)
                 .map(TemperatureData::copyTraits)
                 .orElseGet(() -> new EnumMap<>(Trait.class));
+    }
+
+    /**
+     * Apply a chain of TempModifiers using Cold Sweat's cached tick-rate model.
+     *
+     * The upstream global modifier tick-rate multiplier is intentionally not
+     * wired yet because its config layer is not part of the Fabric port. Until
+     * then, each modifier's own tick rate is used directly.
+     */
+    public static double apply(
+            double currentTemp,
+            LivingEntity entity,
+            Trait trait,
+            TempModifier... modifiers
+    )
+    {
+        double result = currentTemp;
+
+        for (TempModifier modifier : modifiers)
+        {
+            if (modifier == null)
+            {
+                continue;
+            }
+
+            int tickRate = Math.max(1, modifier.getTickRate());
+
+            double next = entity.tickCount % tickRate == 0
+                    || modifier.getTicksExisted() == 0
+                    || entity.tickCount <= 1
+                    ? modifier.update(result, entity, trait)
+                    : modifier.apply(trait, result);
+
+            if (!Double.isNaN(next))
+            {
+                result = next;
+            }
+        }
+
+        return result;
+    }
+
+    public static double apply(
+            double currentTemp,
+            LivingEntity entity,
+            Trait trait,
+            Collection<? extends TempModifier> modifiers
+    )
+    {
+        return apply(
+                currentTemp,
+                entity,
+                trait,
+                modifiers.toArray(new TempModifier[0])
+        );
     }
 
     private static <T extends Enum<T> & StringRepresentable> Codec<T> enumIgnoreCase(T[] values)

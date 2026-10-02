@@ -54,6 +54,7 @@ sourceSets {
 
             // M3: core temperature model, persistence, sync, manager and mutation semantics.
             include 'com/momosoftworks/coldsweat/api/util/Temperature.java'
+            include 'com/momosoftworks/coldsweat/api/temperature/modifier/TempModifier.java'
             include 'com/momosoftworks/coldsweat/api/event/common/temperautre/TemperatureChangedEvent.java'
         }
 
