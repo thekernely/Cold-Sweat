@@ -13,9 +13,10 @@ import net.minecraft.world.level.block.state.BlockState;
 
 public class IceboxBlockEntity extends HearthBlockEntity
 {
-    private static final int FUEL_INTERVAL = 40;
     private static final int WATERSKIN_INTERVAL = 20;
     private static final double MIN_WATER_TEMPERATURE = -50.0;
+
+    private boolean usingThermalCold;
 
     public IceboxBlockEntity(BlockPos pos, BlockState state)
     {
@@ -29,7 +30,7 @@ public class IceboxBlockEntity extends HearthBlockEntity
             IceboxBlockEntity blockEntity
     )
     {
-        HearthBlockEntity.tick(level, pos, state, blockEntity);
+        blockEntity.tickCommon();
 
         if (level.isClientSide())
         {
@@ -41,7 +42,8 @@ public class IceboxBlockEntity extends HearthBlockEntity
             blockEntity.tryLoadFuel();
         }
 
-        boolean processingWaterskin = blockEntity.hasWaterskinAboveTarget();
+        boolean processingWaterskin =
+                blockEntity.hasWaterskinAboveTarget();
 
         if (blockEntity.getFuel() > 0
                 && blockEntity.getTicksExisted() % WATERSKIN_INTERVAL == 0)
@@ -49,7 +51,23 @@ public class IceboxBlockEntity extends HearthBlockEntity
             blockEntity.coolWaterskins();
         }
 
-        if (processingWaterskin
+        if (blockEntity.getTicksExisted() % EFFECT_INTERVAL == 0)
+        {
+            blockEntity.usingThermalCold =
+                    blockEntity.provideThermalEffects(
+                            level,
+                            pos,
+                            false,
+                            true,
+                            5
+                    ).cold();
+        }
+
+        boolean activeDemand =
+                processingWaterskin
+                        || blockEntity.usingThermalCold;
+
+        if (activeDemand
                 && blockEntity.getFuel() > 0
                 && blockEntity.getTicksExisted() % FUEL_INTERVAL == 0)
         {
@@ -57,9 +75,14 @@ public class IceboxBlockEntity extends HearthBlockEntity
         }
 
         boolean frosted = blockEntity.getFuel() > 0;
+
         if (state.getValue(IceboxBlock.FROSTED) != frosted)
         {
-            level.setBlock(pos, state.setValue(IceboxBlock.FROSTED, frosted), 3);
+            level.setBlock(
+                    pos,
+                    state.setValue(IceboxBlock.FROSTED, frosted),
+                    3
+            );
         }
     }
 
@@ -69,8 +92,10 @@ public class IceboxBlockEntity extends HearthBlockEntity
         {
             ItemStack stack = getItem(slot);
             if (stack.is(ModItems.FILLED_WATERSKIN)
-                    && stack.getOrDefault(ModItemComponents.WATER_TEMPERATURE, 0.0)
-                    > MIN_WATER_TEMPERATURE)
+                    && stack.getOrDefault(
+                            ModItemComponents.WATER_TEMPERATURE,
+                            0.0
+                    ) > MIN_WATER_TEMPERATURE)
             {
                 return true;
             }
@@ -99,7 +124,10 @@ public class IceboxBlockEntity extends HearthBlockEntity
             {
                 stack.set(
                         ModItemComponents.WATER_TEMPERATURE,
-                        Math.max(MIN_WATER_TEMPERATURE, temperature - 1.0)
+                        Math.max(
+                                MIN_WATER_TEMPERATURE,
+                                temperature - 1.0
+                        )
                 );
                 changed = true;
             }
@@ -114,9 +142,11 @@ public class IceboxBlockEntity extends HearthBlockEntity
     private void tryLoadFuel()
     {
         ItemStack fuelStack = getItem(0);
-        int fuelValue = ThermalFuelRegistry.getIceboxFuel(fuelStack);
+        int fuelValue =
+                ThermalFuelRegistry.getIceboxFuel(fuelStack);
 
-        if (fuelValue <= 0 || getFuel() > getMaxFuel() - fuelValue)
+        if (fuelValue <= 0
+                || getFuel() > getMaxFuel() - fuelValue)
         {
             return;
         }

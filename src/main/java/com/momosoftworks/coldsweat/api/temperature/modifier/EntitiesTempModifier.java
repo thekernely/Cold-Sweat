@@ -1,7 +1,9 @@
 package com.momosoftworks.coldsweat.api.temperature.modifier;
 
 import com.momosoftworks.coldsweat.api.util.Temperature;
+import com.momosoftworks.coldsweat.core.init.ModEffects;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.vehicle.minecart.MinecartFurnace;
@@ -18,13 +20,10 @@ import java.util.function.Function;
 /**
  * Nearby-entity WORLD temperature contribution.
  *
- * This M4 implementation restores Cold Sweat's bundled vanilla entity
- * temperature sources without pulling the full datapack/config codec graph
- * forward:
- * - any burning entity: +15 F, 6 block range, affects itself
- * - fueled furnace minecart: +12 F, 4 block range
- *
- * The generic EntityTempData codec remains a later extensibility/config task.
+ * M6.3 also consumes the Warmth/Frigidness effects supplied by thermal
+ * machines. Upstream expresses those effects as ThermalSourceTempModifiers;
+ * this Fabric boundary performs the same normalization at the end of the
+ * nearby-entity stage without pulling that event graph forward.
  */
 public class EntitiesTempModifier extends TempModifier
 {
@@ -43,6 +42,10 @@ public class EntitiesTempModifier extends TempModifier
                     Temperature.Units.MC,
                     false
             );
+
+    private static final double DEFAULT_FREEZING_POINT = 0.5;
+    private static final double DEFAULT_BURNING_POINT = 1.7;
+    private static final double THERMAL_SOURCE_STRENGTH = 0.75;
 
     @Override
     protected Function<Double, Double> calculate(
@@ -100,7 +103,58 @@ public class EntitiesTempModifier extends TempModifier
         }
 
         double finalEffect = totalEffect;
-        return temperature -> temperature + finalEffect;
+
+        return temperature ->
+                applyThermalSourceEffects(
+                        affectedEntity,
+                        temperature + finalEffect
+                );
+    }
+
+    private static double applyThermalSourceEffects(
+            LivingEntity entity,
+            double temperature
+    )
+    {
+        double midpoint =
+                (DEFAULT_FREEZING_POINT
+                        + DEFAULT_BURNING_POINT) / 2.0;
+
+        MobEffectInstance warmth =
+                entity.getEffect(ModEffects.WARMTH);
+
+        if (temperature < midpoint
+                && warmth != null)
+        {
+            double factor = clamp(
+                    ((warmth.getAmplifier() + 1)
+                            * THERMAL_SOURCE_STRENGTH) / 10.0,
+                    0.0,
+                    1.0
+            );
+
+            return temperature
+                    + (midpoint - temperature) * factor;
+        }
+
+        MobEffectInstance frigidness =
+                entity.getEffect(ModEffects.FRIGIDNESS);
+
+        if (temperature > midpoint
+                && frigidness != null)
+        {
+            double factor = clamp(
+                    ((frigidness.getAmplifier() + 1)
+                            * THERMAL_SOURCE_STRENGTH) / 10.0,
+                    0.0,
+                    1.0
+            );
+
+            return temperature
+                    + (midpoint - temperature) * factor;
+        }
+
+        return temperature;
     }
 
     private static double calculateSourceEffect(
@@ -145,11 +199,6 @@ public class EntitiesTempModifier extends TempModifier
         return effect / (solidBlocks + 1.0);
     }
 
-    /**
-     * Upstream attenuates entity temperature once for every solid block along
-     * the ray. Sample at three points per block, matching the resolution used
-     * by its WorldHelper.forBlocksInRay(..., 3) call.
-     */
     private static int countSolidBlocksBetween(
             Level level,
             Vec3 start,

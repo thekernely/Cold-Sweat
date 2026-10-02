@@ -13,9 +13,10 @@ import net.minecraft.world.level.block.state.BlockState;
 
 public class BoilerBlockEntity extends HearthBlockEntity
 {
-    private static final int FUEL_INTERVAL = 40;
     private static final int WATERSKIN_INTERVAL = 20;
     private static final double MAX_WATER_TEMPERATURE = 50.0;
+
+    private boolean usingThermalHeat;
 
     public BoilerBlockEntity(BlockPos pos, BlockState state)
     {
@@ -29,7 +30,7 @@ public class BoilerBlockEntity extends HearthBlockEntity
             BoilerBlockEntity blockEntity
     )
     {
-        HearthBlockEntity.tick(level, pos, state, blockEntity);
+        blockEntity.tickCommon();
 
         if (level.isClientSide())
         {
@@ -41,7 +42,8 @@ public class BoilerBlockEntity extends HearthBlockEntity
             blockEntity.tryLoadFuel();
         }
 
-        boolean processingWaterskin = blockEntity.hasWaterskinBelowTarget();
+        boolean processingWaterskin =
+                blockEntity.hasWaterskinBelowTarget();
 
         if (blockEntity.getFuel() > 0
                 && blockEntity.getTicksExisted() % WATERSKIN_INTERVAL == 0)
@@ -49,17 +51,40 @@ public class BoilerBlockEntity extends HearthBlockEntity
             blockEntity.warmWaterskins();
         }
 
-        if (processingWaterskin
+        if (blockEntity.getTicksExisted() % EFFECT_INTERVAL == 0)
+        {
+            blockEntity.usingThermalHeat =
+                    blockEntity.provideThermalEffects(
+                            level,
+                            pos,
+                            true,
+                            false,
+                            5
+                    ).hot();
+        }
+
+        boolean activeDemand =
+                processingWaterskin
+                        || blockEntity.usingThermalHeat;
+
+        if (activeDemand
                 && blockEntity.getFuel() > 0
                 && blockEntity.getTicksExisted() % FUEL_INTERVAL == 0)
         {
             blockEntity.setFuel(blockEntity.getFuel() - 1);
         }
 
-        boolean lit = blockEntity.getFuel() > 0 && blockEntity.hasWaterskinBelowTarget();
+        boolean lit =
+                blockEntity.getFuel() > 0
+                        && activeDemand;
+
         if (state.getValue(BoilerBlock.LIT) != lit)
         {
-            level.setBlock(pos, state.setValue(BoilerBlock.LIT, lit), 3);
+            level.setBlock(
+                    pos,
+                    state.setValue(BoilerBlock.LIT, lit),
+                    3
+            );
         }
     }
 
@@ -69,8 +94,10 @@ public class BoilerBlockEntity extends HearthBlockEntity
         {
             ItemStack stack = getItem(slot);
             if (stack.is(ModItems.FILLED_WATERSKIN)
-                    && stack.getOrDefault(ModItemComponents.WATER_TEMPERATURE, 0.0)
-                    < MAX_WATER_TEMPERATURE)
+                    && stack.getOrDefault(
+                            ModItemComponents.WATER_TEMPERATURE,
+                            0.0
+                    ) < MAX_WATER_TEMPERATURE)
             {
                 return true;
             }
@@ -99,7 +126,10 @@ public class BoilerBlockEntity extends HearthBlockEntity
             {
                 stack.set(
                         ModItemComponents.WATER_TEMPERATURE,
-                        Math.min(MAX_WATER_TEMPERATURE, temperature + 1.0)
+                        Math.min(
+                                MAX_WATER_TEMPERATURE,
+                                temperature + 1.0
+                        )
                 );
                 changed = true;
             }
@@ -114,9 +144,11 @@ public class BoilerBlockEntity extends HearthBlockEntity
     private void tryLoadFuel()
     {
         ItemStack fuelStack = getItem(0);
-        int fuelValue = ThermalFuelRegistry.getBoilerFuel(fuelStack);
+        int fuelValue =
+                ThermalFuelRegistry.getBoilerFuel(fuelStack);
 
-        if (fuelValue <= 0 || getFuel() > getMaxFuel() - fuelValue)
+        if (fuelValue <= 0
+                || getFuel() > getMaxFuel() - fuelValue)
         {
             return;
         }
