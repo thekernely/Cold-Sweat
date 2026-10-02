@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "cold_sweat",
+  "version": "${version}",
+  "name": "Cold Sweat",
+  "description": "Unofficial community Fabric port of Cold Sweat for Minecraft 26.2.",
+  "authors": [
+    "Mikul"
+  ],
+  "contact": {
+    "sources": "https://github.com/thekernely/Cold-Sweat"
+  },
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.momosoftworks.coldsweat.fabric.ColdSweatFabric"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "minecraft": "~26.2",
+    "java": ">=25",
+    "fabric-api": "*"
+  }
+}

@@ -1,203 +1,66 @@
 plugins {
-    id 'java-library'
-    id 'idea'
+    id 'net.fabricmc.fabric-loom' version "${loom_version}"
     id 'maven-publish'
-    id 'net.neoforged.moddev' version '2.0.107'
 }
 
 version = mod_version
 group = mod_group_id
 
-java {
-    archivesBaseName = mod_name
-    toolchain.languageVersion = JavaLanguageVersion.of(21)
-    withSourcesJar()
-}
-
-neoForge {
-    version = project.neo_version
-
-    accessTransformers {
-        file("src/main/resources/META-INF/accesstransformer.cfg")
-    }
-
-    runs {
-        client {
-            client()
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
-        }
-        server {
-            server()
-            programArgument '--nogui'
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
-        }
-        configureEach {
-            systemProperty 'forge.logging.markers', 'REGISTRIES'
-            logLevel = org.slf4j.event.Level.DEBUG
-        }
-    }
-
-    mods {
-        "${mod_id}" {
-            sourceSet(sourceSets.main)
-        }
-    }
-}
-
-idea {
-    module {
-        downloadSources = true
-        downloadJavadoc = true
-    }
-}
-
-sourceSets.main.resources { srcDir 'src/generated/resources' }
-
-configurations {
-    runtimeClasspath.extendsFrom localRuntime
+base {
+    archivesName = mod_name
 }
 
 repositories {
-    mavenCentral()
-    maven {
-        name = 'Minecraft libraries'
-        url = 'https://libraries.minecraft.net'
-    }
-    maven {
-        name = "CurseForge"
-        url 'https://www.cursemaven.com'
-        content {
-            includeGroup "curse.maven"
+}
+
+loom {
+    mods {
+        "cold_sweat" {
+            sourceSet sourceSets.main
         }
     }
-    maven {
-        name = "Modrinth"
-        url = "https://api.modrinth.com/maven"
-        content {
-            includeGroup "maven.modrinth"
+}
+
+sourceSets {
+    main {
+        java {
+            // M1 bootstrap only.
+            // Existing Cold Sweat sources will be re-enabled incrementally.
+            include 'com/momosoftworks/coldsweat/fabric/**'
         }
-    }
-    maven {
-        name = "Architectury"
-        url = "https://maven.architectury.dev"
-        content {
-            includeGroup "dev.architectury"
+
+        resources {
+            // Keep the old NeoForge metadata/mixins out of the bootstrap runtime.
+            include 'fabric.mod.json'
         }
-    }
-    maven {
-        name = "KubeJS"
-        url "https://maven.latvian.dev/releases"
-        content {
-            includeGroup "dev.latvian.mods"
-            includeGroup "dev.latvian.apps"
-        }
-    }
-    maven {
-        url 'https://jitpack.io'
-        content {
-            includeGroup "com.github.rtyley"
-        }
-    }
-    maven {
-        name = "Create API"
-        url = "https://maven.createmod.net"
-    }
-    maven {
-        name = "Jared's maven (JEI)"
-        url = "https://maven.blamejared.com/"
-    }
-    maven {
-        url 'https://jitpack.io'
-    }
-    maven {
-        name = "Registrate"
-        url "https://maven.ithundxr.dev/snapshots"
-    }
-    maven {
-        name = "Sable Companion"
-        url = "https://maven.ryanhcode.dev/releases"
     }
 }
 
 dependencies {
-    compileOnly "curse.maven:tough-as-nails-246391:5833252"
-
-    // Compat Mods
-    implementation "maven.modrinth:thirst-was-reclaimed:1.21.1-3.0.1-b"
-    implementation "curse.maven:serene-seasons-291874:6182596"
-    implementation "curse.maven:glitchcore-955399:5660740"
-    implementation "curse.maven:spoiled-364918:6918103"
-    implementation "curse.maven:curios-309927:6529130"
-    implementation "curse.maven:iceberg-520110:6423863"
-    compileOnly "curse.maven:primal-winter-393321:5811975"
-    compileOnly "curse.maven:weather-storms-tornadoes-237746:6926103"
-    implementation "curse.maven:coroutil-237749:5622966"
-    implementation "curse.maven:immersive-engineering-231951:6733669"
-
-    // Sable (Compat)
-    implementation "maven.modrinth:sable:1.0.6+mc1.21.1"
-    implementation "maven.modrinth:create-aeronautics:1.0.3+mc1.21.1"
-    jarJar(api("dev.ryanhcode.sable-companion:sable-companion-common-${project.minecraft_version}:[${project.sable_companion_version},)")) {
-        version {
-            prefer project.sable_companion_version
-        }
-    }
-
-    // Create (Compat)
-    implementation "curse.maven:create-328085:7408951"
-    compileOnly("net.createmod.ponder:Ponder-NeoForge-1.21.1:1.0.39")
-    compileOnly "com.tterrag.registrate:Registrate:MC1.21-1.3.0+67"
-
-    // KubeJS (Compat)
-    implementation "dev.latvian.mods:kubejs-neoforge:${kubejs_version}"
-    implementation "dev.latvian.apps:tiny-java-server:${tiny_server_version}"
-    implementation "com.github.rtyley:animated-gif-lib-for-java:animated-gif-lib-1.7"
-
-    // JEI (Compat)
-    implementation "mezz.jei:jei-${minecraft_version}-neoforge:${jei_version}"
-
-    // Runtime mods
-    runtimeOnly "curse.maven:boatload-337396:7118750"
-    runtimeOnly "curse.maven:blueprint-382216:7148094"
-    runtimeOnly "curse.maven:spark-361579:6225208"
-    runtimeOnly "curse.maven:biomes-o-plenty-220318:7251965"
-    runtimeOnly "curse.maven:terrablender-neoforge-940057:6054947"
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 }
 
-tasks.withType(ProcessResources).configureEach {
-    var replaceProperties = [
-            minecraft_version      : minecraft_version,
-            minecraft_version_range: minecraft_version_range,
-            neo_version            : neo_version,
-            neo_version_range      : neo_version_range,
-            loader_version_range   : loader_version_range,
-            mod_id                 : mod_id,
-            mod_name               : mod_name,
-            mod_license            : mod_license,
-            mod_version            : mod_version,
-            mod_authors            : mod_authors,
-            mod_description        : mod_description
-    ]
-    inputs.properties replaceProperties
+processResources {
+    def version = project.version
 
-    filesMatching(['META-INF/neoforge.mods.toml']) {
-        expand replaceProperties
-    }
-}
+    inputs.property "version", version
 
-publishing {
-    publications {
-        register('mavenJava', MavenPublication) {
-            from components.java
-        }
-    }
-    repositories {
-        maven {
-            url "file://${project.projectDir}/repo"
-        }
+    filesMatching("fabric.mod.json") {
+        expand "version": version
     }
 }
 
 tasks.withType(JavaCompile).configureEach {
+    options.release = 25
     options.encoding = 'UTF-8'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+
+    withSourcesJar()
 }
