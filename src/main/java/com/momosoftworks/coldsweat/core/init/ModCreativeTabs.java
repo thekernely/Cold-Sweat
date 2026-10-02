@@ -1,112 +1,42 @@
 package com.momosoftworks.coldsweat.core.init;
 
-import com.momosoftworks.coldsweat.ColdSweat;
-import com.momosoftworks.coldsweat.api.event.client.InsulatorTabBuildEvent;
-import com.momosoftworks.coldsweat.api.insulation.Insulation;
-import com.momosoftworks.coldsweat.common.item.FilledWaterskinItem;
-import com.momosoftworks.coldsweat.compat.CompatManager;
-import com.momosoftworks.coldsweat.config.ConfigSettings;
-import com.momosoftworks.coldsweat.data.codec.configuration.InsulatorData;
-import com.momosoftworks.coldsweat.util.item.ItemStackHelper;
-import com.momosoftworks.coldsweat.util.serialization.ObjectBuilder;
+import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
+import net.fabricmc.fabric.api.creativetab.v1.FabricCreativeModeTab;
+import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.*;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.registries.DeferredHolder;
-import net.neoforged.neoforge.registries.DeferredRegister;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.item.ItemStack;
 
-import java.util.*;
-import java.util.stream.Stream;
-
-public class ModCreativeTabs
+public final class ModCreativeTabs
 {
-    public static final DeferredRegister<CreativeModeTab> ITEM_GROUPS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, ColdSweat.MOD_ID);
+    public static final ResourceKey<CreativeModeTab> COLD_SWEAT_TAB_KEY = ResourceKey.create(
+            BuiltInRegistries.CREATIVE_MODE_TAB.key(),
+            ColdSweatFabric.id("cold_sweat")
+    );
 
-    public static DeferredHolder<CreativeModeTab, CreativeModeTab> COLD_SWEAT_TAB = ITEM_GROUPS.register("cold_sweat", () -> CreativeModeTab.builder()
-            .icon(() -> FilledWaterskinItem.getDisplayStack())
-            .displayItems((params, list) ->
-            {
-                list.acceptAll(List.of(
-                        ModItems.WATERSKIN.value().getDefaultInstance(),
-                        ObjectBuilder.build(() ->
-                        {   ItemStack stack = ModItems.FILLED_WATERSKIN.value().getDefaultInstance();
-                            stack = CompatManager.Thirst.setPurity(stack, 3);
-                            return stack;
-                        }),
-                        ModItems.GOAT_FUR.value().getDefaultInstance(),
-                        ModItems.HOGLIN_HIDE.value().getDefaultInstance(),
-                        ModItems.CHAMELEON_MOLT.value().getDefaultInstance(),
-                        ModItems.MINECART_INSULATION.value().getDefaultInstance(),
-                        ModItems.INSULATED_MINECART.value().getDefaultInstance(),
-                        ModItems.SOULSPRING_LAMP.value().getDefaultInstance(),
-                        ModItems.SOUL_SPROUT.value().getDefaultInstance(),
-                        ModItems.THERMOMETER.value().getDefaultInstance(),
-                        ModItems.THERMOLITH.value().getDefaultInstance(),
-                        ModItems.HEARTH.value().getDefaultInstance(),
-                        ModItems.BOILER.value().getDefaultInstance(),
-                        ModItems.ICEBOX.value().getDefaultInstance(),
-                        ModItems.SMOKESTACK.value().getDefaultInstance(),
-                        ModItems.SEWING_TABLE.value().getDefaultInstance(),
-                        ModItems.HOGLIN_HELMET.value().getDefaultInstance(),
-                        ModItems.HOGLIN_CHESTPLATE.value().getDefaultInstance(),
-                        ModItems.HOGLIN_LEGGINGS.value().getDefaultInstance(),
-                        ModItems.HOGLIN_BOOTS.value().getDefaultInstance(),
-                        ModItems.GOAT_FUR_HELMET.value().getDefaultInstance(),
-                        ModItems.GOAT_FUR_CHESTPLATE.value().getDefaultInstance(),
-                        ModItems.GOAT_FUR_LEGGINGS.value().getDefaultInstance(),
-                        ModItems.GOAT_FUR_BOOTS.value().getDefaultInstance(),
-                        ModItems.CHAMELEON_HELMET.value().getDefaultInstance(),
-                        ModItems.CHAMELEON_CHESTPLATE.value().getDefaultInstance(),
-                        ModItems.CHAMELEON_LEGGINGS.value().getDefaultInstance(),
-                        ModItems.CHAMELEON_BOOTS.value().getDefaultInstance(),
-                        ModItems.CHAMELEON_SPAWN_EGG.value().getDefaultInstance()
-                ));
-            })
+    public static final CreativeModeTab COLD_SWEAT_TAB = FabricCreativeModeTab.builder()
             .title(Component.translatable("itemGroup.cold_sweat"))
-            .build());
-
-    public static DeferredHolder<CreativeModeTab, CreativeModeTab> INSULATION_ITEMS_TAB = ITEM_GROUPS.register("cs_insulation_items", () -> CreativeModeTab.builder()
-            .icon(() -> ModItems.CHAMELEON_MOLT.value().getDefaultInstance())
-            .displayItems((params, list) ->
-            {
-                List<ItemStack> allInsulators = new ArrayList<>();
-                Stream.of(
-                        sort(ConfigSettings.INSULATION_ITEMS.get().entries()),
-                        sort(ConfigSettings.INSULATING_ARMORS.get().entries()),
-                        sort(ConfigSettings.INSULATING_CURIOS.get().entries())
-                ).flatMap(Collection::stream).forEach(stack ->
-                {
-                    if (allInsulators.stream().noneMatch(s -> s.getItem() == stack.getItem()))
-                    {   allInsulators.add(stack);
-                    }
-                });
-
-                list.acceptAll(allInsulators);
+            .icon(() -> new ItemStack(ModItems.CHAMELEON_MOLT))
+            .displayItems((parameters, output) -> {
+                output.accept(ModItems.GOAT_FUR);
+                output.accept(ModItems.HOGLIN_HIDE);
+                output.accept(ModItems.CHAMELEON_MOLT);
             })
-            .title(Component.translatable("itemGroup.cs_insulation_items"))
-            .build());
+            .build();
 
-    private static List<ItemStack> sort(Collection<Map.Entry<Item, InsulatorData>> items)
+    public static void initialize()
     {
-        List<Map.Entry<Item, InsulatorData>> list = new ArrayList<>(items);
-        list.removeIf(entry -> entry.getKey() == null || entry.getKey() == Items.AIR);
+        Registry.register(
+                BuiltInRegistries.CREATIVE_MODE_TAB,
+                COLD_SWEAT_TAB_KEY,
+                COLD_SWEAT_TAB
+        );
+        ColdSweatFabric.LOGGER.info("Registering Cold Sweat creative tab foundation.");
+    }
 
-        // Sort by tags the items are in
-        list.sort(Comparator.comparing(entry -> entry.getKey().builtInRegistryHolder().tags().sequential().map(tag -> tag.location().toString()).reduce("", (a, b) -> a + b)));
-        // Sort by insulation value
-        list.sort(Comparator.comparingInt(entry -> entry.getValue().insulation().stream().mapToInt(Insulation::getCompareValue).min().orElse(0)));
-        // Sort by armor material and slot
-        list.sort(Comparator.comparing(entry -> {
-            if (!(entry.getKey() instanceof ArmorItem armor)) return "";
-            String materialName = armor.getMaterial().unwrapKey().map(key -> key.location().toString()).orElse(BuiltInRegistries.ITEM.getKey(armor).getPath());
-            return materialName + (3 - ItemStackHelper.getEquipmentSlot(entry.getKey().getDefaultInstance()).getIndex());
-        }));
-
-        InsulatorTabBuildEvent event = new InsulatorTabBuildEvent(list);
-        NeoForge.EVENT_BUS.post(event);
-
-        return event.getItems().stream().map(entry -> new ItemStack(entry.getKey())).toList();
+    private ModCreativeTabs()
+    {
     }
 }

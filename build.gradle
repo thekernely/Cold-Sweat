@@ -35,12 +35,12 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/core/init/ModItemComponents.java'
             include 'com/momosoftworks/coldsweat/core/init/ModItems.java'
             include 'com/momosoftworks/coldsweat/core/init/ModAdvancementTriggers.java'
+            include 'com/momosoftworks/coldsweat/core/init/ModCreativeTabs.java'
             include 'com/momosoftworks/coldsweat/core/advancement/trigger/ArmorInsulatedTrigger.java'
             include 'com/momosoftworks/coldsweat/core/advancement/trigger/SoulLampFueledTrigger.java'
             include 'com/momosoftworks/coldsweat/common/effect/**'
             include 'com/momosoftworks/coldsweat/util/registries/ModGameRules.java'
 
-            // Vanilla/Fabric tag-key definitions needed by upcoming content registries.
             include 'com/momosoftworks/coldsweat/data/tag/ModBiomeTags.java'
             include 'com/momosoftworks/coldsweat/data/tag/ModBlockTags.java'
             include 'com/momosoftworks/coldsweat/data/tag/ModEffectTags.java'
@@ -50,8 +50,6 @@ sourceSets {
         }
 
         resources {
-            // Keep old NeoForge metadata/mixins out of the bootstrap runtime,
-            // while progressively restoring resources used by ported systems.
             include 'fabric.mod.json'
             include 'assets/cold_sweat/sounds.json'
             include 'assets/cold_sweat/sounds/**'
@@ -59,9 +57,6 @@ sourceSets {
             include 'assets/cold_sweat/textures/particle/**'
             include 'assets/cold_sweat/textures/mob_effect/**'
             include 'assets/cold_sweat/lang/**'
-
-            // Advancement JSONs stay excluded until all Cold Sweat criterion
-            // triggers and their gameplay dependencies are ported.
         }
     }
 }
@@ -74,9 +69,7 @@ dependencies {
 
 processResources {
     def version = project.version
-
     inputs.property "version", version
-
     filesMatching("fabric.mod.json") {
         expand "version": version
     }
@@ -91,6 +84,5 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(25)
     }
-
     withSourcesJar()
 }
