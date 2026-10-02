@@ -172,10 +172,10 @@ sourceSets {
             include 'assets/cold_sweat/textures/block/smokestack*.png'
 
             // M6.10: Slush fluid presentation and thermal-machine release resources.
-            include 'assets/cold_sweat/blockstates/slush.json'
             include 'assets/cold_sweat/models/item/slush_bucket.json'
             include 'assets/cold_sweat/items/slush_bucket.json'
             include 'assets/cold_sweat/textures/item/bucket_slush.png'
+            include 'assets/cold_sweat/textures/gui/overlay/body_temp_gauge.png'
             include 'data/cold_sweat/recipe/hearth.json'
             include 'data/cold_sweat/recipe/boiler.json'
             include 'data/cold_sweat/recipe/icebox.json'

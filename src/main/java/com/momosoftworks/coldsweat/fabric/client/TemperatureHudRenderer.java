@@ -6,21 +6,27 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.resources.Identifier;
 
 import java.util.Locale;
 
 /**
- * M7.1 observability HUD.
+ * M7 temperature HUD.
  *
- * This is intentionally data-first rather than final art. The renderer only
- * consumes TemperatureHudData, so later gauge textures, positioning settings,
- * unit settings, and compact/detailed layouts do not need to touch the
- * synchronized temperature runtime.
+ * Data acquisition, player-facing temperature conversion, and rendering remain
+ * separate so later configuration can independently change units, visibility,
+ * layout, and artwork without altering the canonical simulation.
  */
 public final class TemperatureHudRenderer
 {
-    private static final int BAR_WIDTH = 82;
-    private static final int BAR_HEIGHT = 5;
+    private static final Identifier BODY_GAUGE_TEXTURE =
+            ColdSweatFabric.id(
+                    "textures/gui/overlay/body_temp_gauge.png"
+            );
+
+    private static final int ICON_SIZE = 10;
+    private static final int ICON_TEXTURE_HEIGHT = 90;
 
     private TemperatureHudRenderer()
     {
@@ -42,8 +48,7 @@ public final class TemperatureHudRenderer
         Minecraft minecraft = Minecraft.getInstance();
         LocalPlayer player = minecraft.player;
 
-        if (player == null
-                || player.isSpectator())
+        if (player == null || player.isSpectator())
         {
             return;
         }
@@ -52,7 +57,125 @@ public final class TemperatureHudRenderer
                 TemperatureHudData.capture(player);
 
         int centerX = graphics.guiWidth() / 2;
-        int baseY = graphics.guiHeight() - 64;
+        int iconY = graphics.guiHeight() - 49;
+
+        int iconStage = getBodyIconStage(data.bodyStress());
+        int bob = getThreatBob(player, data.bodyStress());
+
+        graphics.blit(
+                RenderPipelines.GUI_TEXTURED,
+                BODY_GAUGE_TEXTURE,
+                centerX - ICON_SIZE / 2,
+                iconY - bob,
+                0.0F,
+                40.0F - iconStage * 10.0F,
+                ICON_SIZE,
+                ICON_SIZE,
+                ICON_SIZE,
+                ICON_TEXTURE_HEIGHT
+        );
+
+        renderNumericReadouts(
+                graphics,
+                minecraft,
+                data,
+                centerX,
+                iconY
+        );
+    }
+
+    /**
+     * Mirrors Cold Sweat's upstream body severity semantics:
+     *
+     * 0..100 BODY stress spans severity 0..3.
+     * 100..150 spans severity 3..7.
+     *
+     * The original HUD uses the 0..100 range for the regular icon transitions
+     * and switches to its extreme +/-4 frame at and beyond 100.
+     */
+    static double getBodySeverity(double bodyStress)
+    {
+        double sign = Math.signum(bodyStress);
+        double absolute = Math.abs(bodyStress);
+
+        double severity;
+        if (absolute < 100.0)
+        {
+            severity = lerp(
+                    0.0,
+                    3.0,
+                    absolute / 100.0
+            );
+        }
+        else
+        {
+            severity = lerp(
+                    3.0,
+                    7.0,
+                    Math.min(
+                            1.0,
+                            (absolute - 100.0) / 50.0
+                    )
+            );
+        }
+
+        return severity * sign;
+    }
+
+    private static int getBodyIconStage(double bodyStress)
+    {
+        double severity = getBodySeverity(bodyStress);
+
+        if (Math.abs(bodyStress) >= 100.0)
+        {
+            return 4 * (int) Math.signum(bodyStress);
+        }
+
+        int stage;
+        if (severity >= 0.0)
+        {
+            stage = (int) Math.floor(severity);
+        }
+        else
+        {
+            stage = (int) Math.ceil(severity);
+        }
+
+        return Math.max(-4, Math.min(4, stage));
+    }
+
+    private static int getThreatBob(
+            LocalPlayer player,
+            double bodyStress
+    )
+    {
+        int danger = Math.min(
+                3,
+                (int) Math.abs(getBodySeverity(bodyStress))
+        );
+
+        if (danger >= 3)
+        {
+            return player.tickCount % 2;
+        }
+
+        if (danger == 2 && player.tickCount % 3 == 0)
+        {
+            return 1;
+        }
+
+        return 0;
+    }
+
+    private static void renderNumericReadouts(
+            GuiGraphicsExtractor graphics,
+            Minecraft minecraft,
+            TemperatureHudData data,
+            int centerX,
+            int iconY
+    )
+    {
+        Font font = minecraft.font;
 
         String body = String.format(
                 Locale.ROOT,
@@ -65,84 +188,56 @@ public final class TemperatureHudRenderer
                 data.environmentCelsius()
         );
 
-        Font font = minecraft.font;
+        int gap = 12;
         int bodyWidth = font.width(body);
-        int environmentWidth = font.width(environment);
-        int textWidth = bodyWidth + 12 + environmentWidth;
 
-        int panelLeft = centerX - Math.max(textWidth + 10, BAR_WIDTH + 8) / 2;
-        int panelRight = centerX + Math.max(textWidth + 10, BAR_WIDTH + 8) / 2;
+        int bodyX = centerX - gap - bodyWidth;
+        int environmentX = centerX + gap;
+        int textY = iconY + 1;
 
-        graphics.fill(
-                panelLeft,
-                baseY - 13,
-                panelRight,
-                baseY + 12,
-                0x90000000
-        );
+        int bodyColor = getBodyTextColor(data.bodyStress());
 
-        int textX = centerX - textWidth / 2;
         graphics.text(
                 font,
                 body,
-                textX,
-                baseY - 10,
-                0xFFFFFFFF,
+                bodyX,
+                textY,
+                bodyColor,
                 true
         );
+
         graphics.text(
                 font,
                 environment,
-                textX + bodyWidth + 12,
-                baseY - 10,
+                environmentX,
+                textY,
                 0xFFFFFFFF,
                 true
         );
+    }
 
-        int barX = centerX - BAR_WIDTH / 2;
-        int barY = baseY + 2;
-        int half = BAR_WIDTH / 2;
+    private static int getBodyTextColor(double bodyStress)
+    {
+        if (bodyStress > 0.0)
+        {
+            return 0xFFFF803D;
+        }
 
-        graphics.fill(
-                barX,
-                barY,
-                barX + half,
-                barY + BAR_HEIGHT,
-                0xFF4386E6
-        );
-        graphics.fill(
-                barX + half,
-                barY,
-                barX + BAR_WIDTH,
-                barY + BAR_HEIGHT,
-                0xFFF08A24
-        );
+        if (bodyStress < 0.0)
+        {
+            return 0xFF409CFC;
+        }
 
-        int neutralX = barX + half;
-        graphics.fill(
-                neutralX,
-                barY - 1,
-                neutralX + 1,
-                barY + BAR_HEIGHT + 1,
-                0xFFB8B8B8
-        );
+        return 0xFFFFFFFF;
+    }
 
-        double clampedStress = Math.max(
-                -100.0,
-                Math.min(100.0, data.bodyStress())
-        );
-        int markerX = barX + (int) Math.round(
-                (clampedStress + 100.0)
-                        / 200.0
-                        * (BAR_WIDTH - 1)
-        );
-
-        graphics.fill(
-                markerX - 1,
-                barY - 2,
-                markerX + 2,
-                barY + BAR_HEIGHT + 2,
-                0xFFFFFFFF
-        );
+    private static double lerp(
+            double start,
+            double end,
+            double delta
+    )
+    {
+        return start + (end - start)
+                * Math.max(0.0, Math.min(1.0, delta));
     }
 }
