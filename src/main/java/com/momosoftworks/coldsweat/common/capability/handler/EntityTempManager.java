@@ -6,11 +6,13 @@ import com.momosoftworks.coldsweat.core.init.ModAttributes;
 import com.momosoftworks.coldsweat.core.init.ModDataAttachments;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
+import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 
 import java.util.Arrays;
@@ -92,26 +94,57 @@ public final class EntityTempManager
     }
 
     /**
-     * Maps a Cold Sweat temperature trait to its backing vanilla attribute.
+     * Returns the registered Cold Sweat attribute backing a temperature trait.
      *
-     * CORE and BODY are capability/runtime values rather than attributes, so
-     * they intentionally return null. This mirrors upstream Cold Sweat.
+     * CORE and BODY are runtime/capability values, so they intentionally have
+     * no backing attribute.
      */
-    public static AttributeInstance getAttribute(Temperature.Trait trait, LivingEntity entity)
+    public static Holder<Attribute> getAttributeHolder(Temperature.Trait trait)
     {
         return switch (trait)
         {
-            case WORLD           -> entity.getAttribute(ModAttributes.WORLD_TEMPERATURE);
-            case BASE            -> entity.getAttribute(ModAttributes.BASE_BODY_TEMPERATURE);
-            case RATE            -> entity.getAttribute(ModAttributes.TEMP_RATE);
-            case FREEZING_POINT  -> entity.getAttribute(ModAttributes.FREEZING_POINT);
-            case BURNING_POINT   -> entity.getAttribute(ModAttributes.BURNING_POINT);
-            case HEAT_RESISTANCE -> entity.getAttribute(ModAttributes.HEAT_RESISTANCE);
-            case COLD_RESISTANCE -> entity.getAttribute(ModAttributes.COLD_RESISTANCE);
-            case HEAT_DAMPENING  -> entity.getAttribute(ModAttributes.HEAT_DAMPENING);
-            case COLD_DAMPENING  -> entity.getAttribute(ModAttributes.COLD_DAMPENING);
+            case WORLD           -> ModAttributes.WORLD_TEMPERATURE;
+            case BASE            -> ModAttributes.BASE_BODY_TEMPERATURE;
+            case RATE            -> ModAttributes.TEMP_RATE;
+            case FREEZING_POINT  -> ModAttributes.FREEZING_POINT;
+            case BURNING_POINT   -> ModAttributes.BURNING_POINT;
+            case HEAT_RESISTANCE -> ModAttributes.HEAT_RESISTANCE;
+            case COLD_RESISTANCE -> ModAttributes.COLD_RESISTANCE;
+            case HEAT_DAMPENING  -> ModAttributes.HEAT_DAMPENING;
+            case COLD_DAMPENING  -> ModAttributes.COLD_DAMPENING;
             default              -> null;
         };
+    }
+
+    /**
+     * Maps a registered Cold Sweat attribute back to its temperature trait.
+     */
+    public static Temperature.Trait getTraitForAttribute(Holder<Attribute> attribute)
+    {
+        if (attribute == null)
+        {
+            return null;
+        }
+
+        for (Temperature.Trait trait : VALID_ATTRIBUTE_TRAITS)
+        {
+            Holder<Attribute> candidate = getAttributeHolder(trait);
+            if (attribute.equals(candidate))
+            {
+                return trait;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Maps a Cold Sweat temperature trait to its live attribute instance.
+     */
+    public static AttributeInstance getAttribute(Temperature.Trait trait, LivingEntity entity)
+    {
+        Holder<Attribute> attribute = getAttributeHolder(trait);
+        return attribute != null ? entity.getAttribute(attribute) : null;
     }
 
     /**
