@@ -25,11 +25,6 @@ public final class TemperatureHudRenderer
                     "textures/gui/overlay/body_temp_gauge.png"
             );
 
-    private static final Identifier WORLD_GAUGE_TEXTURE =
-            ColdSweatFabric.id(
-                    "textures/gui/overlay/world_temp_gauge.png"
-            );
-
     private static final int ICON_SIZE = 10;
     private static final int ICON_TEXTURE_HEIGHT = 90;
 
@@ -62,7 +57,7 @@ public final class TemperatureHudRenderer
                 TemperatureHudData.capture(player);
 
         int centerX = graphics.guiWidth() / 2;
-        int iconY = graphics.guiHeight() - 49;
+        int iconY = graphics.guiHeight() - 57;
 
         renderNumericReadouts(
                 graphics,
@@ -167,54 +162,44 @@ public final class TemperatureHudRenderer
         Font font = minecraft.font;
 
         /*
-         * M7.4: two authored mini-instruments instead of two naked strings.
+         * M7.7: centered vertical instrument with reactive text styling.
          *
-         * [body icon][37°]   [world gauge with 22° inside]
+         *        37.0 C
+         *         [icon]
+         *        24.1 C
          *
-         * This remains unambiguous even when both temperatures are equal.
+         * Body temperature lives above the icon, surroundings below.
+         * Both values now react visually to temperature using the same
+         * blue/orange language as Cold Sweat's body icon.
          */
         String body = String.format(
                 Locale.ROOT,
-                "%.0f\u00B0",
+                "%.1f\u00B0C",
                 data.bodyCelsius()
         );
+
         String environment = String.format(
                 Locale.ROOT,
-                "%.0f\u00B0",
+                "%.1f\u00B0C",
                 data.environmentCelsius()
         );
 
-        final float textScale = 0.72F;
-        final int bodyGap = 2;
-        final int instrumentGap = 4;
-        final int worldWidth = 25;
-        final int worldHeight = 16;
-
-        int bodyTextWidth = font.width(body);
-        int bodyLogicalWidth =
-                ICON_SIZE
-                        + bodyGap
-                        + Math.round(bodyTextWidth * textScale);
-
-        int totalWidth =
-                bodyLogicalWidth
-                        + instrumentGap
-                        + worldWidth;
-
-        int left = centerX - totalWidth / 2;
-
-        // Re-anchor the body icon into the composite instrument.
-        int bodyIconX = left;
-        int bodyIconY = iconY;
+        final float textScale = 0.70F;
 
         int iconStage = getBodyIconStage(data.bodyStress());
-        int bob = getThreatBob(minecraft.player, data.bodyStress());
+        int bob = getThreatBob(
+                minecraft.player,
+                data.bodyStress()
+        );
+
+        int bodyIconX =
+                centerX - ICON_SIZE / 2;
 
         graphics.blit(
                 RenderPipelines.GUI_TEXTURED,
                 BODY_GAUGE_TEXTURE,
                 bodyIconX,
-                bodyIconY - bob,
+                iconY - bob,
                 0.0F,
                 40.0F - iconStage * 10.0F,
                 ICON_SIZE,
@@ -223,94 +208,255 @@ public final class TemperatureHudRenderer
                 ICON_TEXTURE_HEIGHT
         );
 
-        // Body readout - physically attached to the body icon.
-        graphics.pose().pushMatrix();
-        graphics.pose().scale(textScale, textScale);
-
-        float inverseScale = 1.0F / textScale;
-        int bodyTextX = Math.round(
-                (bodyIconX + ICON_SIZE + bodyGap)
-                        * inverseScale
-        );
-        int bodyTextY = Math.round(
-                (bodyIconY + 1)
-                        * inverseScale
-        );
-
-        graphics.text(
+        drawCenteredStyledText(
+                graphics,
                 font,
                 body,
-                bodyTextX,
-                bodyTextY,
-                getBodyTextColor(data.bodyStress()),
-                true
+                centerX,
+                iconY - 10,
+                textScale,
+                getBodyTemperatureColor(data.bodyCelsius()),
+                getBodyTemperatureAccentColor(data.bodyCelsius()),
+                getBodyTemperatureEffectLevel(data.bodyCelsius())
         );
 
-        graphics.pose().popMatrix();
-
-        // Environment readout - rendered inside Cold Sweat's own world gauge.
-        int worldX =
-                left
-                        + bodyLogicalWidth
-                        + instrumentGap;
-
-        int worldY =
-                iconY
-                        - (worldHeight - ICON_SIZE) / 2;
-
-        // Neutral upstream world-gauge frame for now.
-        graphics.blit(
-                RenderPipelines.GUI_TEXTURED,
-                WORLD_GAUGE_TEXTURE,
-                worldX,
-                worldY,
-                0.0F,
-                64.0F,
-                worldWidth,
-                worldHeight,
-                worldWidth,
-                144
+        drawCenteredStyledText(
+                graphics,
+                font,
+                environment,
+                centerX,
+                iconY + ICON_SIZE + 3,
+                textScale,
+                getEnvironmentTemperatureColor(
+                        data.environmentCelsius()
+                ),
+                getEnvironmentTemperatureAccentColor(
+                        data.environmentCelsius()
+                ),
+                getEnvironmentTemperatureEffectLevel(
+                        data.environmentCelsius()
+                )
         );
+    }
 
+    private static void drawCenteredStyledText(
+            GuiGraphicsExtractor graphics,
+            Font font,
+            String text,
+            int centerX,
+            int y,
+            float scale,
+            int baseColor,
+            int accentColor,
+            int effectLevel
+    )
+    {
         graphics.pose().pushMatrix();
-        graphics.pose().scale(textScale, textScale);
+        graphics.pose().scale(scale, scale);
 
-        int envTextWidth = font.width(environment);
-        int envCenterX = worldX + worldWidth / 2;
-        int envTextX = Math.round(
-                envCenterX * inverseScale
-                        - envTextWidth / 2.0F
-        );
-        int envTextY = Math.round(
-                (worldY + 4)
-                        * inverseScale
-        );
+        float inverseScale = 1.0F / scale;
+
+        int scaledCenterX =
+                Math.round(centerX * inverseScale);
+
+        int scaledY =
+                Math.round(y * inverseScale);
+
+        int x =
+                scaledCenterX
+                        - font.width(text) / 2;
+
+        /*
+         * Dangerous temperatures get a tinted accent shell so the text feels
+         * more integrated with Cold Sweat's visual language than plain white
+         * Minecraft text. Stage 1 adds a cardinal accent; stage 2 adds
+         * diagonals for a sharper frozen/heated effect.
+         */
+        if (effectLevel >= 1)
+        {
+            graphics.text(font, text, x - 1, scaledY, accentColor, false);
+            graphics.text(font, text, x + 1, scaledY, accentColor, false);
+            graphics.text(font, text, x, scaledY - 1, accentColor, false);
+            graphics.text(font, text, x, scaledY + 1, accentColor, false);
+        }
+
+        if (effectLevel >= 2)
+        {
+            graphics.text(font, text, x - 1, scaledY - 1, accentColor, false);
+            graphics.text(font, text, x + 1, scaledY - 1, accentColor, false);
+            graphics.text(font, text, x - 1, scaledY + 1, accentColor, false);
+            graphics.text(font, text, x + 1, scaledY + 1, accentColor, false);
+        }
 
         graphics.text(
                 font,
-                environment,
-                envTextX,
-                envTextY,
-                0xFFE8E8E8,
+                text,
+                x,
+                scaledY,
+                baseColor,
                 true
         );
 
         graphics.pose().popMatrix();
     }
 
-    private static int getBodyTextColor(double bodyStress)
+    private static int getBodyTemperatureColor(double bodyCelsius)
     {
-        if (bodyStress > 0.0)
+        if (bodyCelsius < 36.5)
         {
-            return 0xFFFF803D;
+            return lerpColor(
+                    0xFFFFFFFF,
+                    0xFF409CFC,
+                    clamp01((36.5 - bodyCelsius) / 2.0)
+            );
         }
 
-        if (bodyStress < 0.0)
+        if (bodyCelsius > 37.5)
         {
-            return 0xFF409CFC;
+            return lerpColor(
+                    0xFFFFFFFF,
+                    0xFFFF803D,
+                    clamp01((bodyCelsius - 37.5) / 2.0)
+            );
         }
 
         return 0xFFFFFFFF;
+    }
+
+    private static int getBodyTemperatureAccentColor(double bodyCelsius)
+    {
+        if (bodyCelsius < 35.0)
+        {
+            return lerpColor(
+                    0xFF8FD0FF,
+                    0xFFDFF6FF,
+                    clamp01((35.0 - bodyCelsius) / 1.5)
+            );
+        }
+
+        if (bodyCelsius > 39.0)
+        {
+            return lerpColor(
+                    0xFFFFA45E,
+                    0xFFFFD0A3,
+                    clamp01((bodyCelsius - 39.0) / 1.5)
+            );
+        }
+
+        return 0x00000000;
+    }
+
+    private static int getBodyTemperatureEffectLevel(double bodyCelsius)
+    {
+        if (bodyCelsius <= 34.5 || bodyCelsius >= 40.0)
+        {
+            return 2;
+        }
+
+        if (bodyCelsius <= 35.5 || bodyCelsius >= 39.0)
+        {
+            return 1;
+        }
+
+        return 0;
+    }
+
+    private static int getEnvironmentTemperatureColor(
+            double environmentCelsius
+    )
+    {
+        if (environmentCelsius < 18.0)
+        {
+            return lerpColor(
+                    0xFFFFFFFF,
+                    0xFF409CFC,
+                    clamp01((18.0 - environmentCelsius) / 18.0)
+            );
+        }
+
+        if (environmentCelsius > 26.0)
+        {
+            return lerpColor(
+                    0xFFFFFFFF,
+                    0xFFFF803D,
+                    clamp01((environmentCelsius - 26.0) / 18.0)
+            );
+        }
+
+        return 0xFFE8E8E8;
+    }
+
+    private static int getEnvironmentTemperatureAccentColor(
+            double environmentCelsius
+    )
+    {
+        if (environmentCelsius < 0.0)
+        {
+            return lerpColor(
+                    0xFF8FD0FF,
+                    0xFFDFF6FF,
+                    clamp01((0.0 - environmentCelsius) / 15.0)
+            );
+        }
+
+        if (environmentCelsius > 36.0)
+        {
+            return lerpColor(
+                    0xFFFFA45E,
+                    0xFFFFD0A3,
+                    clamp01((environmentCelsius - 36.0) / 14.0)
+            );
+        }
+
+        return 0x00000000;
+    }
+
+    private static int getEnvironmentTemperatureEffectLevel(
+            double environmentCelsius
+    )
+    {
+        if (environmentCelsius <= -8.0 || environmentCelsius >= 44.0)
+        {
+            return 2;
+        }
+
+        if (environmentCelsius <= 0.0 || environmentCelsius >= 36.0)
+        {
+            return 1;
+        }
+
+        return 0;
+    }
+
+    private static int lerpColor(
+            int startColor,
+            int endColor,
+            double delta
+    )
+    {
+        double t = clamp01(delta);
+
+        int startA = (startColor >> 24) & 0xFF;
+        int startR = (startColor >> 16) & 0xFF;
+        int startG = (startColor >> 8) & 0xFF;
+        int startB = startColor & 0xFF;
+
+        int endA = (endColor >> 24) & 0xFF;
+        int endR = (endColor >> 16) & 0xFF;
+        int endG = (endColor >> 8) & 0xFF;
+        int endB = endColor & 0xFF;
+
+        int a = (int) Math.round(lerp(startA, endA, t));
+        int r = (int) Math.round(lerp(startR, endR, t));
+        int g = (int) Math.round(lerp(startG, endG, t));
+        int b = (int) Math.round(lerp(startB, endB, t));
+
+        return (a << 24) | (r << 16) | (g << 8) | b;
+    }
+
+    private static double clamp01(double value)
+    {
+        return Math.max(0.0, Math.min(1.0, value));
     }
 
     private static double lerp(
