@@ -1,6 +1,7 @@
 package com.momosoftworks.coldsweat.api.util;
 
 import com.mojang.serialization.Codec;
+import com.momosoftworks.coldsweat.api.event.common.temperautre.TemperatureChangedEvent;
 import com.momosoftworks.coldsweat.common.capability.handler.EntityTempManager;
 import com.momosoftworks.coldsweat.common.capability.temperature.TemperatureData;
 import io.netty.buffer.ByteBuf;
@@ -16,8 +17,8 @@ import java.util.EnumMap;
  * General helper class for temperature-related actions.
  *
  * M3 is restoring this class incrementally. Unit/trait behavior and persistent
- * synchronized entity trait access are live; modifiers/events are restored in
- * later M3 slices.
+ * synchronized entity trait access are live; modifiers are restored in later
+ * slices.
  */
 public final class Temperature
 {
@@ -68,17 +69,56 @@ public final class Temperature
 
     public static void set(LivingEntity entity, Trait trait, double value)
     {
-        EntityTempManager.getTemperatureData(entity)
-                .ifPresent(data -> EntityTempManager.setTemperatureData(entity, data.withTrait(trait, value)));
+        double oldValue = get(entity, trait);
+        TemperatureChangedEvent event =
+                TemperatureChangedEvent.fire(entity, trait, oldValue, value);
+
+        if (event.isCanceled())
+        {
+            return;
+        }
+
+        double newValue = event.getTemperature();
+        if (Double.compare(oldValue, newValue) == 0)
+        {
+            return;
+        }
+
+        EntityTempManager.getTemperatureData(entity).ifPresent(data ->
+        {
+            TemperatureData updated = data.withTrait(trait, newValue);
+            if (updated != data)
+            {
+                EntityTempManager.setTemperatureData(entity, updated);
+            }
+        });
     }
 
     public static void add(LivingEntity entity, Trait trait, double value)
     {
-        EntityTempManager.getTemperatureData(entity)
-                .ifPresent(data -> EntityTempManager.setTemperatureData(
-                        entity,
-                        data.withTrait(trait, data.getTrait(trait) + value)
-                ));
+        double oldValue = get(entity, trait);
+        TemperatureChangedEvent event =
+                TemperatureChangedEvent.fire(entity, trait, oldValue, oldValue + value);
+
+        if (event.isCanceled())
+        {
+            return;
+        }
+
+        double newValue = event.getTemperature();
+        if (Double.compare(oldValue, newValue) == 0)
+        {
+            return;
+        }
+
+        EntityTempManager.getTemperatureData(entity).ifPresent(data ->
+        {
+            TemperatureData updated = data.withTrait(trait, newValue);
+            if (updated != data)
+            {
+                EntityTempManager.setTemperatureData(entity, updated);
+            }
+        });
     }
 
     public static EnumMap<Trait, Double> getTemperatures(LivingEntity entity)

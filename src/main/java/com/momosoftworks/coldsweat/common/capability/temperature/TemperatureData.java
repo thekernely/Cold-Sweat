@@ -60,9 +60,24 @@ public final class TemperatureData
     {
         validateStoredTrait(trait);
 
+        double currentValue = traits.getOrDefault(trait, 0.0);
+        if (Double.compare(currentValue, value) == 0)
+        {
+            return this;
+        }
+
         EnumMap<Temperature.Trait, Double> updated = new EnumMap<>(Temperature.Trait.class);
         updated.putAll(traits);
-        updated.put(trait, value);
+
+        if (Double.compare(value, 0.0) == 0)
+        {
+            updated.remove(trait);
+        }
+        else
+        {
+            updated.put(trait, value);
+        }
+
         return new TemperatureData(updated);
     }
 

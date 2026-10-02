@@ -51,8 +51,9 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/data/tag/ModFluidTags.java'
             include 'com/momosoftworks/coldsweat/data/tag/ModItemTags.java'
 
-            // M3: core temperature model, persistence, sync, and manager boundary.
+            // M3: core temperature model, persistence, sync, manager and mutation semantics.
             include 'com/momosoftworks/coldsweat/api/util/Temperature.java'
+            include 'com/momosoftworks/coldsweat/api/event/common/temperautre/TemperatureChangedEvent.java'
         }
 
         resources {
