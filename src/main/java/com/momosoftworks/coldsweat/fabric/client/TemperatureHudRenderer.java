@@ -184,8 +184,6 @@ public final class TemperatureHudRenderer
                 data.environmentCelsius()
         );
 
-        final float textScale = 0.70F;
-
         int iconStage = getBodyIconStage(data.bodyStress());
         int bob = getThreatBob(
                 minecraft.player,
@@ -208,25 +206,17 @@ public final class TemperatureHudRenderer
                 ICON_TEXTURE_HEIGHT
         );
 
-        drawCenteredStyledText(
-                graphics,
-                font,
-                body,
-                centerX,
-                iconY - 10,
-                textScale,
-                getBodyTemperatureColor(data.bodyCelsius()),
-                getBodyTemperatureAccentColor(data.bodyCelsius()),
-                getBodyTemperatureEffectLevel(data.bodyCelsius())
-        );
-
+        /*
+         * Environment is the primary readout: larger and above the icon.
+         * Internal body temperature is secondary: smaller and below.
+         */
         drawCenteredStyledText(
                 graphics,
                 font,
                 environment,
                 centerX,
-                iconY + ICON_SIZE + 3,
-                textScale,
+                iconY - 11,
+                0.82F,
                 getEnvironmentTemperatureColor(
                         data.environmentCelsius()
                 ),
@@ -236,6 +226,18 @@ public final class TemperatureHudRenderer
                 getEnvironmentTemperatureEffectLevel(
                         data.environmentCelsius()
                 )
+        );
+
+        drawCenteredStyledText(
+                graphics,
+                font,
+                body,
+                centerX,
+                iconY + ICON_SIZE + 3,
+                0.68F,
+                getBodyTemperatureColor(data.bodyCelsius()),
+                getBodyTemperatureAccentColor(data.bodyCelsius()),
+                getBodyTemperatureEffectLevel(data.bodyCelsius())
         );
     }
 
