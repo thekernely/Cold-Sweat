@@ -2,12 +2,14 @@ package com.momosoftworks.coldsweat.common.capability.temperature;
 
 import com.momosoftworks.coldsweat.api.registry.TempModifierRegistry;
 import com.momosoftworks.coldsweat.api.temperature.modifier.TempModifier;
+import com.momosoftworks.coldsweat.api.temperature.modifier.WaterTempModifier;
 import com.momosoftworks.coldsweat.api.util.Temperature;
 import com.momosoftworks.coldsweat.common.capability.handler.EntityTempManager;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -119,8 +121,58 @@ public final class TemperatureModifierRuntime
                 continue;
             }
 
+            updateWaterExposure(entity);
             tickWorldTemperature(entity);
         }
+    }
+
+    /**
+     * Upstream adds WaterTempModifier dynamically for players rather than as a
+     * permanent default modifier:
+     * - water is checked every 5 ticks
+     * - rain is sampled every 40 ticks
+     * - duplicate WaterTempModifiers are not added
+     * - the modifier later expires naturally after drying back to zero
+     */
+    private static void updateWaterExposure(LivingEntity entity)
+    {
+        if (!(entity instanceof Player player)
+                || player.isSpectator()
+                || player.tickCount % 5 != 0)
+        {
+            return;
+        }
+
+        boolean wet =
+                player.isInWater()
+                        || (player.tickCount % 40 == 0
+                            && player.level().isRainingAt(
+                                    player.blockPosition()
+                            ));
+
+        if (!wet)
+        {
+            return;
+        }
+
+        List<TempModifier> modifiers =
+                WORLD_MODIFIERS.get(entity);
+
+        if (modifiers == null
+                || modifiers.stream()
+                        .anyMatch(WaterTempModifier.class::isInstance))
+        {
+            return;
+        }
+
+        TempModifier water =
+                createRegistered("water").tickRate(5);
+
+        water.onAdded(
+                entity,
+                Temperature.Trait.WORLD
+        );
+        modifiers.add(water);
     }
 
     private static void tickWorldTemperature(LivingEntity entity)

@@ -1,100 +1,178 @@
 package com.momosoftworks.coldsweat.api.temperature.modifier;
 
 import com.momosoftworks.coldsweat.api.util.Temperature;
-import com.momosoftworks.coldsweat.util.math.CSMath;
-import com.momosoftworks.coldsweat.config.ConfigSettings;
-import com.momosoftworks.coldsweat.util.world.WorldHelper;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.particles.ParticleTypes;
+import com.momosoftworks.coldsweat.config.WaterExposureSettings;
 import net.minecraft.world.entity.LivingEntity;
 
 import java.util.function.Function;
 
+/**
+ * Cold Sweat's WORLD-trait wetness modifier.
+ *
+ * M4.12 restores the upstream soak/rain/dry state machine and defaults. The
+ * full biome-specific water-temperature lookup is intentionally deferred until
+ * the biome config/data bridge exists; until then water uses world.toml's
+ * default -10 F relative contribution.
+ */
 public class WaterTempModifier extends TempModifier
 {
+    private double temperature;
+
     public WaterTempModifier()
-    {   this(0);
+    {
+        this(0.0);
     }
 
     public WaterTempModifier(double temperature)
-    {   this.getNBT().putDouble("Temperature", temperature);
+    {
+        this.temperature = temperature;
     }
 
     public double getTemperature()
-    {   return this.getNBT().getDouble("Temperature");
+    {
+        return temperature;
     }
 
     public void setTemperature(double temperature)
     {
-        if (temperature != this.getTemperature())
-        {   this.markDirty();
+        if (Double.compare(this.temperature, temperature) != 0)
+        {
+            markDirty();
         }
-        this.getNBT().putDouble("Temperature", temperature);
+        this.temperature = temperature;
     }
 
     public double getTargetTemperature(LivingEntity entity)
     {
-        BlockPos entityPos = WorldHelper.sublevelToWorld(entity.level(), entity.blockPosition());
-        Double[] waterTemps = WorldHelper.getPositionGrid(entityPos, 9, 4).stream()
-                              .map(pos -> WorldHelper.getWaterTemperatureDelta(entity.level(), pos))
-                              .toArray(Double[]::new);
-        return CSMath.average(waterTemps);
+        return WaterExposureSettings.DEFAULT_WATER_TEMP_DELTA;
     }
 
     @Override
-    public Function<Double, Double> calculate(LivingEntity entity, Temperature.Trait trait)
+    protected Function<Double, Double> calculate(
+            LivingEntity entity,
+            Temperature.Trait trait
+    )
     {
-        double worldTemp = Temperature.get(entity, Temperature.Trait.WORLD);
-        double minWorldTemp = ConfigSettings.MIN_TEMP.get();
-        double maxWorldTemp = ConfigSettings.MAX_TEMP.get();
-        double configDrySpeed = ConfigSettings.DRYOFF_SPEED.get();
+        double worldTemp =
+                Temperature.get(entity, Temperature.Trait.WORLD);
 
-        double temperature = this.getTemperature();
-        double target = this.getTargetTemperature(entity);
+        double current = getTemperature();
+        double target = getTargetTemperature(entity);
+
+        boolean inWater = entity.isInWater();
+        boolean raining =
+                entity.level().isRainingAt(entity.blockPosition());
+
         double addAmount;
-        if (WorldHelper.isInWater(entity))
+        if (inWater)
         {
-            if (temperature < target)
-            {   addAmount = Math.min(ConfigSettings.WATER_SOAK_SPEED.get(), target - temperature);
+            if (current < target)
+            {
+                addAmount = Math.min(
+                        WaterExposureSettings.WATER_SOAK_SPEED,
+                        target - current
+                );
             }
             else
-            {   addAmount = Math.max(-ConfigSettings.WATER_SOAK_SPEED.get(), target - temperature);
+            {
+                addAmount = Math.max(
+                        -WaterExposureSettings.WATER_SOAK_SPEED,
+                        target - current
+                );
             }
         }
-        else if (WorldHelper.isRainingAt(entity.level(), entity.blockPosition()))
-        {   addAmount = Math.max(-ConfigSettings.RAIN_SOAK_SPEED.get(), -ConfigSettings.MAX_RAIN_SOAK.get() - temperature);
+        else if (raining)
+        {
+            addAmount = Math.max(
+                    -WaterExposureSettings.RAIN_SOAK_SPEED,
+                    -WaterExposureSettings.MAX_RAIN_SOAK - current
+            );
         }
         else
-        {   addAmount = 0;
+        {
+            addAmount = 0.0;
         }
-        double dryAmount = WorldHelper.isInWater(entity) ? 0
-                         : CSMath.blendExp(configDrySpeed / 1.5, configDrySpeed * 5, worldTemp, minWorldTemp, maxWorldTemp, 20);
 
-        double tickRate = this.getTickRate() / 5.0;
-        double newTemperature = CSMath.shrink(temperature + addAmount * tickRate, dryAmount * tickRate);
-        if (newTemperature == 0)
-        {   this.expires(0);
+        double dryAmount = inWater
+                ? 0.0
+                : blendExp(
+                        WaterExposureSettings.DRYOFF_SPEED / 1.5,
+                        WaterExposureSettings.DRYOFF_SPEED * 5.0,
+                        worldTemp,
+                        WaterExposureSettings.FREEZING_POINT,
+                        WaterExposureSettings.BURNING_POINT,
+                        20.0
+                );
+
+        double tickScale = getTickRate() / 5.0;
+
+        double newTemperature = shrink(
+                current + addAmount * tickScale,
+                dryAmount * tickScale
+        );
+
+        if (Math.abs(newTemperature) < 1.0e-9)
+        {
+            newTemperature = 0.0;
+            expires(0);
         }
-        this.setTemperature(newTemperature);
 
-        return temp -> temp + newTemperature;
+        setTemperature(newTemperature);
+
+        double finalTemperature = newTemperature;
+        return temp -> temp + finalTemperature;
     }
 
     @Override
     public void tick(LivingEntity entity)
     {
-        if (entity.level().isClientSide() && ConfigSettings.WATER_EFFECT_SETTING.get().showParticles() && !entity.isInWater()
-        && Math.random() < Math.abs(this.getTemperature()) * 2 && Temperature.getImmunityToModifier(entity, this) < 1.0)
+        /*
+         * Upstream also renders wetness particles client-side. Client modifier
+         * rendering waits for M7 so the server remains the only authority here.
+         */
+        if (!entity.level().isClientSide() && entity.isOnFire())
         {
-            double randX = entity.getBbWidth() * (Math.random() - 0.5);
-            double randY = entity.getBbHeight() * Math.random();
-            double randZ = entity.getBbWidth() * (Math.random() - 0.5);
-            entity.level().addParticle(ParticleTypes.FALLING_WATER, entity.getX() + randX, entity.getY() + randY, entity.getZ() + randZ, 0, 0, 0);
-        }
-        if (!entity.level().isClientSide && entity.isOnFire())
-        {
-            this.setTemperature(CSMath.shrink(this.getTemperature(),  0.1));
+            setTemperature(
+                    shrink(getTemperature(), 0.1)
+            );
             entity.clearFire();
         }
+    }
+
+    private static double shrink(double value, double amount)
+    {
+        if (value == 0.0)
+        {
+            return 0.0;
+        }
+
+        return Math.max(
+                0.0,
+                Math.abs(value) - amount
+        ) * Math.signum(value);
+    }
+
+    private static double blendExp(
+            double from,
+            double to,
+            double factor,
+            double rangeMin,
+            double rangeMax,
+            double intensity
+    )
+    {
+        factor = Math.max(
+                rangeMin,
+                Math.min(rangeMax, factor)
+        );
+
+        double normalized =
+                (factor - rangeMin) / (rangeMax - rangeMin);
+
+        double expFactor =
+                (Math.pow(intensity, normalized) - 1.0)
+                        / (intensity - 1.0);
+
+        return from + (to - from) * expFactor;
     }
 }
