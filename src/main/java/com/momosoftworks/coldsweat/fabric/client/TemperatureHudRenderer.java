@@ -177,32 +177,63 @@ public final class TemperatureHudRenderer
     {
         Font font = minecraft.font;
 
+        /*
+         * Compact Homeostatic-style cluster:
+         *
+         *     37.0°  [Cold Sweat icon]  20.0°
+         *
+         * The icon stays at the exact screen center regardless of string
+         * widths. Numeric channels hug the icon instead of becoming two
+         * full-size HUD labels.
+         */
         String body = String.format(
                 Locale.ROOT,
-                "Body %.1f\u00B0C",
+                "%.1f\u00B0",
                 data.bodyCelsius()
         );
         String environment = String.format(
                 Locale.ROOT,
-                "Surroundings %.1f\u00B0C",
+                "%.1f\u00B0",
                 data.environmentCelsius()
         );
 
-        int gap = 12;
+        final float textScale = 0.75F;
+        final int gap = 3;
+
         int bodyWidth = font.width(body);
+        int environmentWidth = font.width(environment);
 
-        int bodyX = centerX - gap - bodyWidth;
-        int environmentX = centerX + gap;
-        int textY = iconY + 1;
+        /*
+         * GuiGraphicsExtractor records the current pose per text element,
+         * so scaling only this compact readout does not affect the icon or
+         * any later HUD element.
+         */
+        graphics.pose().pushMatrix();
+        graphics.pose().scale(textScale, textScale);
 
-        int bodyColor = getBodyTextColor(data.bodyStress());
+        float inverseScale = 1.0F / textScale;
+        int scaledCenterX = Math.round(centerX * inverseScale);
+        int scaledTextY = Math.round((iconY + 1) * inverseScale);
+        int scaledHalfIcon = Math.round((ICON_SIZE / 2.0F) * inverseScale);
+        int scaledGap = Math.round(gap * inverseScale);
+
+        int bodyX =
+                scaledCenterX
+                        - scaledHalfIcon
+                        - scaledGap
+                        - bodyWidth;
+
+        int environmentX =
+                scaledCenterX
+                        + scaledHalfIcon
+                        + scaledGap;
 
         graphics.text(
                 font,
                 body,
                 bodyX,
-                textY,
-                bodyColor,
+                scaledTextY,
+                getBodyTextColor(data.bodyStress()),
                 true
         );
 
@@ -210,10 +241,12 @@ public final class TemperatureHudRenderer
                 font,
                 environment,
                 environmentX,
-                textY,
-                0xFFFFFFFF,
+                scaledTextY,
+                0xFFE0E0E0,
                 true
         );
+
+        graphics.pose().popMatrix();
     }
 
     private static int getBodyTextColor(double bodyStress)
