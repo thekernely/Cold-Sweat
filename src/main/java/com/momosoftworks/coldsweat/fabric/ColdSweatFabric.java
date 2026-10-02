@@ -4,6 +4,7 @@ import com.momosoftworks.coldsweat.core.init.ModAdvancementTriggers;
 import com.momosoftworks.coldsweat.core.init.ModArmorMaterials;
 import com.momosoftworks.coldsweat.core.init.ModAttributes;
 import com.momosoftworks.coldsweat.core.init.ModCreativeTabs;
+import com.momosoftworks.coldsweat.core.init.ModDataAttachments;
 import com.momosoftworks.coldsweat.core.init.ModEffects;
 import com.momosoftworks.coldsweat.core.init.ModItemComponents;
 import com.momosoftworks.coldsweat.core.init.ModItems;
@@ -41,6 +42,7 @@ public final class ColdSweatFabric implements ModInitializer
         ModItems.initialize();
         ModAdvancementTriggers.initialize();
         ModCreativeTabs.initialize();
+        ModDataAttachments.initialize();
         ModGameRules.initialize();
     }
 }

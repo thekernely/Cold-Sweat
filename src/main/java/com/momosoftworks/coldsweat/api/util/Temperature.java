@@ -1,16 +1,20 @@
 package com.momosoftworks.coldsweat.api.util;
 
 import com.mojang.serialization.Codec;
+import com.momosoftworks.coldsweat.common.capability.temperature.TemperatureData;
+import com.momosoftworks.coldsweat.core.init.ModDataAttachments;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.StringRepresentable;
+import net.minecraft.world.entity.LivingEntity;
+
+import java.util.EnumMap;
 
 /**
- * Core temperature value model used throughout Cold Sweat.
+ * General helper class for temperature-related actions.
  *
- * M3 starts with the loader-independent portion of the original Temperature
- * helper: unit conversion plus the canonical temperature traits and units.
- * Entity storage, modifiers, events, and network synchronization are restored
- * in later M3 slices.
+ * M3 is restoring this class incrementally. Unit/trait behavior and persistent
+ * entity trait access are live; modifiers/events/networking are restored in
+ * later M3 slices.
  */
 public final class Temperature
 {
@@ -18,12 +22,6 @@ public final class Temperature
     {
     }
 
-    /**
-     * Converts a temperature value between Cold Sweat's supported units.
-     *
-     * @param absolute whether the value represents an absolute temperature
-     *                 rather than a temperature delta
-     */
     public static double convert(double value, Units from, Units to, boolean absolute)
     {
         return switch (from)
@@ -58,6 +56,50 @@ public final class Temperature
         return value;
     }
 
+    /**
+     * Gets a persisted temperature trait from a living entity.
+     */
+    public static double get(LivingEntity entity, Trait trait)
+    {
+        return getData(entity).getTrait(trait);
+    }
+
+    /**
+     * Replaces a persisted temperature trait.
+     *
+     * The attachment value is immutable, so the full TemperatureData value is
+     * replaced through Fabric's API. This guarantees persistence bookkeeping is
+     * correctly notified.
+     */
+    public static void set(LivingEntity entity, Trait trait, double value)
+    {
+        entity.setAttached(
+                ModDataAttachments.ENTITY_TEMPERATURE,
+                getData(entity).withTrait(trait, value)
+        );
+    }
+
+    public static void add(LivingEntity entity, Trait trait, double value)
+    {
+        set(entity, trait, get(entity, trait) + value);
+    }
+
+    public static EnumMap<Trait, Double> getTemperatures(LivingEntity entity)
+    {
+        return getData(entity).copyTraits();
+    }
+
+    private static TemperatureData getData(LivingEntity entity)
+    {
+        TemperatureData data = entity.getAttached(ModDataAttachments.ENTITY_TEMPERATURE);
+        if (data == null)
+        {
+            data = new TemperatureData();
+            entity.setAttached(ModDataAttachments.ENTITY_TEMPERATURE, data);
+        }
+        return data;
+    }
+
     private static <T extends Enum<T> & StringRepresentable> Codec<T> enumIgnoreCase(T[] values)
     {
         return Codec.STRING.xmap(
@@ -83,9 +125,6 @@ public final class Temperature
         );
     }
 
-    /**
-     * Canonical temperature stats used by Cold Sweat.
-     */
     public enum Trait implements StringRepresentable
     {
         WORLD("world", true, true, true),
@@ -174,10 +213,6 @@ public final class Temperature
         }
     }
 
-    /**
-     * Units of measurement used by Cold Sweat.
-     * Most calculations use MC units and convert to Celsius or Fahrenheit for display.
-     */
     public enum Units implements StringRepresentable
     {
         F(
