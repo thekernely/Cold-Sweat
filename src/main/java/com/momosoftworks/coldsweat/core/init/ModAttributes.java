@@ -1,14 +1,18 @@
 package com.momosoftworks.coldsweat.core.init;
 
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
+import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.RangedAttribute;
 
 public final class ModAttributes
 {
+    private static final Identifier PLAYER_TYPE_ID = Identifier.withDefaultNamespace("player");
+
     public static final Holder<Attribute> WORLD_TEMPERATURE = register(
             "world_temperature",
             new RangedAttribute("attribute.world_temperature", Double.NaN, Double.NaN, Double.POSITIVE_INFINITY).setSyncable(true)
@@ -63,9 +67,31 @@ public final class ModAttributes
         );
     }
 
+    private static void registerPlayerAttributes()
+    {
+        FabricDefaultAttributeRegistry.MODIFY.register(context ->
+                context.modify(
+                        type -> PLAYER_TYPE_ID.equals(BuiltInRegistries.ENTITY_TYPE.getKey(type)),
+                        (type, builder) ->
+                        {
+                            builder.add(WORLD_TEMPERATURE, Double.NaN);
+                            builder.add(BASE_BODY_TEMPERATURE, Double.NaN);
+                            builder.add(TEMP_RATE, Double.NaN);
+                            builder.add(BURNING_POINT, Double.NaN);
+                            builder.add(FREEZING_POINT, Double.NaN);
+                            builder.add(HEAT_RESISTANCE, Double.NaN);
+                            builder.add(COLD_RESISTANCE, Double.NaN);
+                            builder.add(HEAT_DAMPENING, Double.NaN);
+                            builder.add(COLD_DAMPENING, Double.NaN);
+                        }
+                )
+        );
+    }
+
     public static void initialize()
     {
-        ColdSweatFabric.LOGGER.info("Registering Cold Sweat attributes.");
+        registerPlayerAttributes();
+        ColdSweatFabric.LOGGER.info("Registering Cold Sweat attributes and player attribute modifications.");
     }
 
     private ModAttributes()
