@@ -6,6 +6,7 @@ import com.momosoftworks.coldsweat.core.init.ModAttributes;
 import com.momosoftworks.coldsweat.core.init.ModDataAttachments;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
@@ -14,6 +15,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -159,6 +161,78 @@ public final class EntityTempManager
     }
 
     /**
+     * Resolves a temperature attribute with Cold Sweat's NaN-fallback semantics.
+     *
+     * Cold Sweat intentionally installs these attributes with NaN base values.
+     * Vanilla's cached AttributeInstance value cannot be used directly in that
+     * state, so upstream performs the operation passes manually after replacing
+     * a NaN base with the caller's configured/runtime fallback.
+     */
+    public static double resolveAttributeValue(
+            LivingEntity entity,
+            Temperature.Trait trait,
+            double fallbackValue
+    )
+    {
+        AttributeInstance attribute = getAttribute(trait, entity);
+        if (attribute == null)
+        {
+            return fallbackValue;
+        }
+
+        double base = attribute.getBaseValue();
+        if (Double.isNaN(base))
+        {
+            base = fallbackValue;
+        }
+
+        for (AttributeModifier modifier : attribute.getModifiers())
+        {
+            if (modifier.operation() == AttributeModifier.Operation.ADD_VALUE)
+            {
+                base += modifier.amount();
+            }
+        }
+
+        double value = base;
+
+        for (AttributeModifier modifier : attribute.getModifiers())
+        {
+            if (modifier.operation() == AttributeModifier.Operation.ADD_MULTIPLIED_BASE)
+            {
+                value += base * modifier.amount();
+            }
+        }
+
+        for (AttributeModifier modifier : attribute.getModifiers())
+        {
+            if (modifier.operation() == AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL)
+            {
+                value *= 1.0 + modifier.amount();
+            }
+        }
+
+        return value;
+    }
+
+    /**
+     * Ensure enabled living entities own their Fabric temperature attachment as
+     * soon as they enter a server level. The later modifier/runtime initializer
+     * can now build on a guaranteed state object instead of relying solely on
+     * lazy reads.
+     */
+    private static void registerEntityLoadLifecycle()
+    {
+        ServerEntityEvents.ENTITY_LOAD.register((entity, level) ->
+        {
+            if (entity instanceof LivingEntity living && isTemperatureEnabled(living))
+            {
+                living.getAttachedOrCreate(ModDataAttachments.ENTITY_TEMPERATURE);
+            }
+        });
+    }
+
+    /**
      * Preserve Cold Sweat temperature state when Minecraft replaces a live
      * ServerPlayer (for example, returning from the End).
      *
@@ -200,10 +274,11 @@ public final class EntityTempManager
     public static void initialize()
     {
         registerPlayerType();
+        registerEntityLoadLifecycle();
         registerPlayerLifecycle();
 
         ColdSweatFabric.LOGGER.info(
-                "Initializing Cold Sweat entity temperature manager with {} enabled entity type(s) and player lifecycle hooks.",
+                "Initializing Cold Sweat entity temperature manager with {} enabled entity type(s), entity-load initialization, and player lifecycle hooks.",
                 TEMPERATURE_ENABLED_ENTITIES.size()
         );
     }
