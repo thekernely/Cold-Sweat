@@ -13,9 +13,6 @@ import java.util.Set;
 
 /**
  * Loader-independent block-temperature source definition.
- *
- * This mirrors upstream Cold Sweat's BlockTemp API while temporarily using the
- * upstream default block range (7) until the file-backed config bridge lands.
  */
 public abstract class BlockTemp
 {
@@ -46,6 +43,17 @@ public abstract class BlockTemp
     public boolean hasBlock(Block block)
     {
         return validBlocks.contains(block);
+    }
+
+    /**
+     * State-aware matching hook. Upstream config-backed BlockTemps can target
+     * block tags; keeping this separate from hasBlock(...) lets static Java
+     * sources keep their fast block matching while tag-driven defaults remain
+     * exact.
+     */
+    public boolean matches(BlockState state)
+    {
+        return hasBlock(state.getBlock());
     }
 
     public Set<Block> getAffectedBlocks()

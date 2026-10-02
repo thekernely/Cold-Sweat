@@ -69,12 +69,6 @@ public final class BlockTempRegistry
             BLOCK_TEMPS.add(blockTemp);
         }
 
-        /*
-         * Upstream eagerly maps declared affected blocks while still allowing
-         * hasBlock(...) fallback matching for dynamic implementations.
-         * Rebuild here so cached misses are invalidated when registration
-         * changes.
-         */
         rebuildMappedBlocks();
     }
 
@@ -116,21 +110,17 @@ public final class BlockTempRegistry
 
         Block block = state.getBlock();
 
-        List<BlockTemp> mapped = MAPPED_BLOCKS.get(block);
-        if (mapped != null && !mapped.isEmpty())
+        List<BlockTemp> cached = MAPPED_BLOCKS.get(block);
+        if (cached != null && !cached.isEmpty())
         {
-            return List.copyOf(mapped);
+            return List.copyOf(cached);
         }
 
-        /*
-         * Preserve upstream's fallback for sources whose hasBlock(...) logic is
-         * broader than their declared block set.
-         */
         LinkedHashSet<BlockTemp> matches = new LinkedHashSet<>();
 
         for (BlockTemp blockTemp : BLOCK_TEMPS)
         {
-            if (blockTemp.hasBlock(block))
+            if (blockTemp.matches(state))
             {
                 matches.add(blockTemp);
             }

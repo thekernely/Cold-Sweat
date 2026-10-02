@@ -7,7 +7,9 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * A BlockTemp defined entirely by static values, except for its {@link BlockTemp#getTemperature(Level, LivingEntity, BlockState, BlockPos, double) getTemperature()} method.
+ * A BlockTemp whose limits/range behavior are entirely static.
+ *
+ * This is the loader-independent upstream Cold Sweat abstraction.
  */
 public abstract class SimpleBlockTemp extends BlockTemp
 {
@@ -19,7 +21,16 @@ public abstract class SimpleBlockTemp extends BlockTemp
     protected final boolean fade;
     protected final boolean logarithmic;
 
-    public SimpleBlockTemp(double minEffect, double maxEffect, double minTemp, double maxTemp, double range, boolean fade, boolean logarithmic, Block... blocks)
+    protected SimpleBlockTemp(
+            double minEffect,
+            double maxEffect,
+            double minTemp,
+            double maxTemp,
+            double range,
+            boolean fade,
+            boolean logarithmic,
+            Block... blocks
+    )
     {
         super(blocks);
         this.minEffect = minEffect;
@@ -32,37 +43,79 @@ public abstract class SimpleBlockTemp extends BlockTemp
     }
 
     @Override
-    public double getMinEffect(LivingEntity entity, Level level, BlockPos pos, BlockState state)
-    {   return this.minEffect;
+    public double getMinEffect(
+            LivingEntity entity,
+            Level level,
+            BlockPos pos,
+            BlockState state
+    )
+    {
+        return minEffect;
     }
 
     @Override
-    public double getMaxEffect(LivingEntity entity, Level level, BlockPos pos, BlockState state)
-    {   return this.maxEffect;
+    public double getMaxEffect(
+            LivingEntity entity,
+            Level level,
+            BlockPos pos,
+            BlockState state
+    )
+    {
+        return maxEffect;
     }
 
     @Override
-    public double getMinTemp(LivingEntity entity, Level level, BlockPos pos, BlockState state)
-    {   return this.minTemp;
+    public double getMinTemp(
+            LivingEntity entity,
+            Level level,
+            BlockPos pos,
+            BlockState state
+    )
+    {
+        return minTemp;
     }
 
     @Override
-    public double getMaxTemp(LivingEntity entity, Level level, BlockPos pos, BlockState state)
-    {   return this.maxTemp;
+    public double getMaxTemp(
+            LivingEntity entity,
+            Level level,
+            BlockPos pos,
+            BlockState state
+    )
+    {
+        return maxTemp;
     }
 
     @Override
-    public double getRange(LivingEntity entity, Level level, BlockPos pos, BlockState state)
-    {   return this.range;
+    public double getRange(
+            LivingEntity entity,
+            Level level,
+            BlockPos pos,
+            BlockState state
+    )
+    {
+        return range;
     }
 
     @Override
-    public boolean fades(LivingEntity entity, Level level, BlockPos pos, BlockState state)
-    {   return this.fade;
+    public boolean fades(
+            LivingEntity entity,
+            Level level,
+            BlockPos pos,
+            BlockState state
+    )
+    {
+        return fade;
     }
 
     @Override
-    public boolean isLogarithmic(LivingEntity entity, Level level, BlockPos pos, BlockState state)
-    {   return this.logarithmic;
+    public boolean isLogarithmic(
+            LivingEntity entity,
+            Level level,
+            BlockPos pos,
+            BlockState state
+    )
+    {
+        return logarithmic;
     }
 }
