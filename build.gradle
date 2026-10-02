@@ -44,6 +44,7 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/common/capability/temperature/TemperatureRuntime.java'
             include 'com/momosoftworks/coldsweat/common/capability/handler/EntityTempManager.java'
             include 'com/momosoftworks/coldsweat/util/registries/ModGameRules.java'
+            include 'com/momosoftworks/coldsweat/util/registries/ModDamageSources.java'
 
             include 'com/momosoftworks/coldsweat/data/tag/ModBiomeTags.java'
             include 'com/momosoftworks/coldsweat/data/tag/ModBlockTags.java'
@@ -72,6 +73,7 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/api/temperature/modifier/WaterTempModifier.java'
             include 'com/momosoftworks/coldsweat/api/temperature/modifier/FreezingTempModifier.java'
             include 'com/momosoftworks/coldsweat/config/WaterExposureSettings.java'
+            include 'com/momosoftworks/coldsweat/config/TemperatureDamageSettings.java'
             include 'com/momosoftworks/coldsweat/util/world/WorldTemperatureUtil.java'
             include 'com/momosoftworks/coldsweat/config/WorldTemperatureSettings.java'
             include 'com/momosoftworks/coldsweat/common/capability/temperature/TemperatureModifierRuntime.java'
@@ -87,6 +89,7 @@ sourceSets {
             include 'assets/cold_sweat/textures/mob_effect/**'
             include 'assets/cold_sweat/lang/**'
             include 'data/c/tags/worldgen/biome/**'
+            include 'data/cold_sweat/damage_type/**'
         }
     }
 }

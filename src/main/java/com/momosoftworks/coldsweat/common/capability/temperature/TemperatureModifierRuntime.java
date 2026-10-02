@@ -6,10 +6,18 @@ import com.momosoftworks.coldsweat.api.temperature.modifier.TempModifier;
 import com.momosoftworks.coldsweat.api.temperature.modifier.WaterTempModifier;
 import com.momosoftworks.coldsweat.api.util.Temperature;
 import com.momosoftworks.coldsweat.common.capability.handler.EntityTempManager;
+import com.momosoftworks.coldsweat.config.TemperatureDamageSettings;
+import com.momosoftworks.coldsweat.core.init.ModEffects;
+import com.momosoftworks.coldsweat.util.registries.ModDamageSources;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.world.Difficulty;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageType;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 
@@ -299,8 +307,8 @@ public final class TemperatureModifierRuntime
      * Live player body-temperature runtime.
      *
      * Environmental WORLD temperature is now meaningful enough to drive CORE.
-     * Damage/effects are deliberately not applied here yet; this slice only
-     * restores the underlying trait evolution and keeps it synchronized.
+     * Environmental state drives CORE/BASE here; critical-temperature
+     * damage is applied after the updated traits are written.
      */
     private static void tickCoreTemperature(
             LivingEntity entity,
@@ -506,6 +514,185 @@ public final class TemperatureModifierRuntime
         );
 
         Temperature.setAll(entity, values);
+        tickTemperatureDamage(entity);
+    }
+
+    /**
+     * Upstream critical-temperature damage:
+     * - no damage in peaceful, creative, spectator, or while Grace is active
+     * - body temperature must reach +/-100
+     * - fire/ice resistance effects can nullify their matching side
+     * - heat/cold resistance scales damage toward zero
+     * - faster outward temperature movement shortens the hurt interval
+     */
+    private static void tickTemperatureDamage(LivingEntity entity)
+    {
+        if (entity.level().getDifficulty() == Difficulty.PEACEFUL
+                || entity.isSpectator()
+                || (entity instanceof Player player
+                    && player.isCreative()))
+        {
+            return;
+        }
+
+        int hurtInterval =
+                TemperatureDamageSettings.HURT_INTERVAL;
+
+        if (hurtInterval < 1
+                || entity.hasEffect(ModEffects.GRACE))
+        {
+            return;
+        }
+
+        double bodyTemperature =
+                Temperature.get(
+                        entity,
+                        Temperature.Trait.BODY
+                );
+
+        double rate =
+                Temperature.get(
+                        entity,
+                        Temperature.Trait.RATE
+                );
+
+        double heatResistance =
+                Temperature.get(
+                        entity,
+                        Temperature.Trait.HEAT_RESISTANCE
+                );
+
+        double coldResistance =
+                Temperature.get(
+                        entity,
+                        Temperature.Trait.COLD_RESISTANCE
+                );
+
+        /*
+         * Upstream only accelerates damage while RATE is pushing farther into
+         * the same hot/cold direction as BODY.
+         */
+        double rateFactor =
+                TemperatureRuntime.sign(bodyTemperature)
+                        == TemperatureRuntime.sign(rate)
+                        ? Math.abs(rate)
+                        : 0.0;
+
+        int rateInterval =
+                (int) blend(
+                        1.0,
+                        4.0,
+                        rateFactor,
+                        0.0,
+                        0.7
+                );
+
+        int actualInterval =
+                Math.max(
+                        1,
+                        hurtInterval / Math.max(1, rateInterval)
+                );
+
+        if (entity.tickCount % actualInterval != 0)
+        {
+            return;
+        }
+
+        Registry<DamageType> damageTypes =
+                entity.level()
+                        .registryAccess()
+                        .lookupOrThrow(
+                                Registries.DAMAGE_TYPE
+                        );
+
+        double configuredDamage =
+                TemperatureDamageSettings.TEMPERATURE_DAMAGE;
+
+        if (bodyTemperature >= 100.0
+                && !(entity.hasEffect(MobEffects.FIRE_RESISTANCE)
+                     && TemperatureDamageSettings.FIRE_RESISTANCE_ENABLED))
+        {
+            double damage =
+                    blend(
+                            configuredDamage,
+                            0.0,
+                            heatResistance,
+                            0.0,
+                            1.0
+                    );
+
+            DamageSource source =
+                    new DamageSource(
+                            damageTypes.getOrThrow(
+                                    ModDamageSources.HOT
+                            )
+                    );
+
+            entity.hurt(
+                    source,
+                    (float) damage
+            );
+        }
+        else if (bodyTemperature <= -100.0
+                && !(entity.hasEffect(ModEffects.ICE_RESISTANCE)
+                     && TemperatureDamageSettings.ICE_RESISTANCE_ENABLED))
+        {
+            double damage =
+                    blend(
+                            configuredDamage,
+                            0.0,
+                            coldResistance,
+                            0.0,
+                            1.0
+                    );
+
+            DamageSource source =
+                    new DamageSource(
+                            damageTypes.getOrThrow(
+                                    ModDamageSources.COLD
+                            )
+                    );
+
+            entity.hurt(
+                    source,
+                    (float) damage
+            );
+        }
+    }
+
+    private static double blend(
+            double from,
+            double to,
+            double factor,
+            double rangeMin,
+            double rangeMax
+    )
+    {
+        if (rangeMin > rangeMax)
+        {
+            return blend(
+                    to,
+                    from,
+                    factor,
+                    rangeMax,
+                    rangeMin
+            );
+        }
+
+        if (factor <= rangeMin)
+        {
+            return from;
+        }
+
+        if (factor >= rangeMax)
+        {
+            return to;
+        }
+
+        return from
+                + (to - from)
+                * ((factor - rangeMin)
+                   / (rangeMax - rangeMin));
     }
 
     private static void tickModifierLifecycle(
