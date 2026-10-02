@@ -67,6 +67,7 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/core/init/TempModifierInit.java'
             include 'com/momosoftworks/coldsweat/api/temperature/modifier/BiomeTempModifier.java'
             include 'com/momosoftworks/coldsweat/api/temperature/modifier/ElevationTempModifier.java'
+            include 'com/momosoftworks/coldsweat/api/temperature/modifier/EntitiesTempModifier.java'
             include 'com/momosoftworks/coldsweat/api/temperature/modifier/CaveBiomeTempModifier.java'
             include 'com/momosoftworks/coldsweat/api/temperature/modifier/BlockTempModifier.java'
             include 'com/momosoftworks/coldsweat/api/temperature/modifier/ShadeTempModifier.java'

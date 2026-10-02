@@ -76,7 +76,7 @@ public final class TemperatureModifierRuntime
      * Current standalone player WORLD chain, preserving upstream ordering and
      * player tick rates for the modifiers already ported:
      *
-     * Biome -> Shade -> Elevation -> Cave Biomes -> Blocks
+     * Biome -> Shade -> Elevation -> Cave Biomes -> Blocks -> Entities
      */
     public static void installDefaultWorldModifiers(LivingEntity entity)
     {
@@ -98,6 +98,9 @@ public final class TemperatureModifierRuntime
         );
         modifiers.add(
                 createRegistered("blocks").tickRate(5)
+        );
+        modifiers.add(
+                createRegistered("entities").tickRate(10)
         );
 
         for (TempModifier modifier : modifiers)
@@ -459,6 +462,17 @@ public final class TemperatureModifierRuntime
                 || coreDeltaSign == equilibriumSign)
         {
             coreTemperature += equilibrium;
+        }
+
+        /*
+         * PlayerTempCap parity: creative and spectator players do not merely
+         * stop gaining heat/cold pressure; their CORE trait is forced to exact
+         * neutral every tick.
+         */
+        if (creative || entity.isSpectator())
+        {
+            coreTemperature = 0.0;
+            rate = 0.0;
         }
 
         EnumMap<Temperature.Trait, Double> values =
