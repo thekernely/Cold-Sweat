@@ -16,11 +16,6 @@ import java.util.Map;
 
 /**
  * Server-side runtime owner for environmental TempModifiers.
- *
- * Upstream Cold Sweat rebuilds default modifiers whenever a temperature-enabled
- * entity joins the world, then ticks/calculates those modifiers every entity
- * tick. This Fabric boundary mirrors that behavior without yet pulling in the
- * larger placement/event/config stack.
  */
 public final class TemperatureModifierRuntime
 {
@@ -65,10 +60,7 @@ public final class TemperatureModifierRuntime
      * Current standalone player WORLD chain, preserving upstream ordering and
      * player tick rates for the modifiers already ported:
      *
-     * Biome -> Shade -> Elevation
-     *
-     * Modifier instances are resolved through TempModifierRegistry using the
-     * same stable IDs as upstream.
+     * Biome -> Shade -> Elevation -> Blocks
      */
     public static void installDefaultWorldModifiers(LivingEntity entity)
     {
@@ -84,6 +76,9 @@ public final class TemperatureModifierRuntime
         );
         modifiers.add(
                 createRegistered("elevation").tickRate(20)
+        );
+        modifiers.add(
+                createRegistered("blocks").tickRate(5)
         );
 
         for (TempModifier modifier : modifiers)

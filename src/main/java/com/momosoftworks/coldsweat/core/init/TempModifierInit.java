@@ -2,16 +2,13 @@ package com.momosoftworks.coldsweat.core.init;
 
 import com.momosoftworks.coldsweat.api.registry.TempModifierRegistry;
 import com.momosoftworks.coldsweat.api.temperature.modifier.BiomeTempModifier;
+import com.momosoftworks.coldsweat.api.temperature.modifier.BlockTempModifier;
 import com.momosoftworks.coldsweat.api.temperature.modifier.ElevationTempModifier;
 import com.momosoftworks.coldsweat.api.temperature.modifier.ShadeTempModifier;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
 
 /**
  * Fabric-native temperature-modifier registry bootstrap.
- *
- * Only modifiers that have actually been ported are registered here. The IDs
- * match upstream Cold Sweat so serialized/config/API references remain stable
- * as later modifiers are restored.
  */
 public final class TempModifierInit
 {
@@ -19,6 +16,10 @@ public final class TempModifierInit
     {
         TempModifierRegistry.flush();
 
+        TempModifierRegistry.register(
+                ColdSweatFabric.id("blocks"),
+                BlockTempModifier::new
+        );
         TempModifierRegistry.register(
                 ColdSweatFabric.id("biomes"),
                 BiomeTempModifier::new
