@@ -15,6 +15,7 @@ import com.momosoftworks.coldsweat.core.init.ModDataAttachments;
 import com.momosoftworks.coldsweat.core.init.ModEffects;
 import com.momosoftworks.coldsweat.core.init.ModItemComponents;
 import com.momosoftworks.coldsweat.core.init.ModItems;
+import com.momosoftworks.coldsweat.core.init.ModMenus;
 import com.momosoftworks.coldsweat.core.init.ModParticleTypes;
 import com.momosoftworks.coldsweat.core.init.ModPotions;
 import com.momosoftworks.coldsweat.core.init.ModSounds;
@@ -50,6 +51,7 @@ public final class ColdSweatFabric implements ModInitializer
         ModBlocks.initialize();
         ModItems.initialize();
         ModBlockEntities.initialize();
+        ModMenus.initialize();
         InsulationRegistry.initialize();
         ItemTemperatureRegistry.initialize();
         ModAdvancementTriggers.initialize();

@@ -3,8 +3,11 @@ package com.momosoftworks.coldsweat.common.block;
 import com.momosoftworks.coldsweat.api.registry.ThermalFuelRegistry;
 import com.momosoftworks.coldsweat.common.blockentity.BoilerBlockEntity;
 import com.momosoftworks.coldsweat.core.init.ModBlockEntities;
+import com.momosoftworks.coldsweat.core.init.ModMenus;
+import com.momosoftworks.coldsweat.core.init.ModItems;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -67,7 +70,18 @@ public class BoilerBlock extends Block implements EntityBlock
         int itemFuel = ThermalFuelRegistry.getBoilerFuel(stack);
         if (itemFuel <= 0)
         {
-            return InteractionResult.TRY_WITH_EMPTY_HAND;
+            if (stack.is(ModItems.SMOKESTACK)
+                    && hit.getDirection() == Direction.UP
+                    && level.getBlockState(pos.above()).canBeReplaced())
+            {
+                return InteractionResult.PASS;
+            }
+
+            if (player instanceof ServerPlayer serverPlayer)
+            {
+                ModMenus.openBoiler(serverPlayer, pos);
+            }
+            return InteractionResult.SUCCESS;
         }
 
         if (level.getBlockEntity(pos) instanceof BoilerBlockEntity boiler
@@ -78,6 +92,22 @@ public class BoilerBlock extends Block implements EntityBlock
             consumeFuelItem(player, hand, stack);
         }
 
+        return InteractionResult.SUCCESS;
+    }
+
+    @Override
+    protected InteractionResult useWithoutItem(
+            BlockState state,
+            Level level,
+            BlockPos pos,
+            Player player,
+            BlockHitResult hit
+    )
+    {
+        if (player instanceof ServerPlayer serverPlayer)
+        {
+            ModMenus.openBoiler(serverPlayer, pos);
+        }
         return InteractionResult.SUCCESS;
     }
 

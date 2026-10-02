@@ -118,6 +118,10 @@ sourceSets {
             // M6.1: thermal-machine blocks, typed block entities, and persistent fuel state.
             include 'com/momosoftworks/coldsweat/core/init/ModBlocks.java'
             include 'com/momosoftworks/coldsweat/core/init/ModBlockEntities.java'
+            include 'com/momosoftworks/coldsweat/core/init/ModMenus.java'
+            include 'com/momosoftworks/coldsweat/common/container/HearthMenu.java'
+            include 'com/momosoftworks/coldsweat/common/container/BoilerMenu.java'
+            include 'com/momosoftworks/coldsweat/common/container/IceboxMenu.java'
             include 'com/momosoftworks/coldsweat/common/block/HearthBottomBlock.java'
             include 'com/momosoftworks/coldsweat/common/block/HearthTopBlock.java'
             include 'com/momosoftworks/coldsweat/common/block/BoilerBlock.java'

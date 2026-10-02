@@ -4,8 +4,10 @@ import com.momosoftworks.coldsweat.api.registry.ThermalFuelRegistry;
 import com.momosoftworks.coldsweat.common.blockentity.HearthBlockEntity;
 import com.momosoftworks.coldsweat.core.init.ModBlockEntities;
 import com.momosoftworks.coldsweat.core.init.ModBlocks;
+import com.momosoftworks.coldsweat.core.init.ModMenus;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionHand;
@@ -107,7 +109,11 @@ public class HearthBottomBlock extends Block implements EntityBlock
         int itemFuel = ThermalFuelRegistry.getHearthFuel(stack);
         if (itemFuel == 0)
         {
-            return InteractionResult.TRY_WITH_EMPTY_HAND;
+            if (player instanceof ServerPlayer serverPlayer)
+            {
+                ModMenus.openHearth(serverPlayer, pos);
+            }
+            return InteractionResult.SUCCESS;
         }
 
         if (level.getBlockEntity(pos) instanceof HearthBlockEntity hearth)
@@ -133,6 +139,22 @@ public class HearthBottomBlock extends Block implements EntityBlock
             }
         }
 
+        return InteractionResult.SUCCESS;
+    }
+
+    @Override
+    protected InteractionResult useWithoutItem(
+            BlockState state,
+            Level level,
+            BlockPos pos,
+            Player player,
+            BlockHitResult hit
+    )
+    {
+        if (player instanceof ServerPlayer serverPlayer)
+        {
+            ModMenus.openHearth(serverPlayer, pos);
+        }
         return InteractionResult.SUCCESS;
     }
 

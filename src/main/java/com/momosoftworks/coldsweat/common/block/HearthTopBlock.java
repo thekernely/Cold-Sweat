@@ -63,6 +63,32 @@ public class HearthTopBlock extends Block
     }
 
     @Override
+    protected InteractionResult useWithoutItem(
+            BlockState state,
+            Level level,
+            BlockPos pos,
+            Player player,
+            BlockHitResult hit
+    )
+    {
+        BlockPos bottomPos = pos.below();
+        BlockState bottomState = level.getBlockState(bottomPos);
+
+        if (bottomState.getBlock() instanceof HearthBottomBlock bottom)
+        {
+            return bottom.useWithoutItem(
+                    bottomState,
+                    level,
+                    bottomPos,
+                    player,
+                    hit
+            );
+        }
+
+        return InteractionResult.PASS;
+    }
+
+    @Override
     protected BlockState updateShape(
             BlockState state,
             LevelReader level,
