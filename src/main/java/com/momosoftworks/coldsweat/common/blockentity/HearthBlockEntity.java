@@ -7,6 +7,7 @@ import com.momosoftworks.coldsweat.common.capability.temperature.TemperatureRunt
 import com.momosoftworks.coldsweat.core.init.ModBlockEntities;
 import com.momosoftworks.coldsweat.core.init.ModEffects;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.NonNullList;
 import net.minecraft.world.Container;
 import net.minecraft.world.ContainerHelper;
@@ -22,6 +23,10 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.AABB;
+
+import java.util.ArrayDeque;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Shared server-side state and thermal-source runtime for the Hearth family.
@@ -39,6 +44,8 @@ public class HearthBlockEntity extends BlockEntity implements Container
     protected static final int EFFECT_INTERVAL = 20;
     protected static final int THERMAL_RANGE = 16;
     protected static final int WARM_UP_TIME = 1200;
+    protected static final int SPREAD_REBUILD_INTERVAL = 40;
+    protected static final int MAX_SPREAD_VOLUME = 4096;
 
     private final NonNullList<ItemStack> items;
 
@@ -49,6 +56,8 @@ public class HearthBlockEntity extends BlockEntity implements Container
 
     private boolean usingHotFuel;
     private boolean usingColdFuel;
+
+    private final Set<BlockPos> spreadPositions = new HashSet<>();
 
     public HearthBlockEntity(BlockPos pos, BlockState state)
     {
@@ -124,6 +133,14 @@ public class HearthBlockEntity extends BlockEntity implements Container
     {
         ticksExisted++;
 
+        if (level != null
+                && !level.isClientSide()
+                && (spreadPositions.isEmpty()
+                    || ticksExisted % SPREAD_REBUILD_INTERVAL == 0))
+        {
+            rebuildSpreadPositions(level);
+        }
+
         if (hasFuel() && insulationLevel < WARM_UP_TIME)
         {
             insulationLevel++;
@@ -156,7 +173,8 @@ public class HearthBlockEntity extends BlockEntity implements Container
                 candidate -> EntityTempManager.isTemperatureEnabled(candidate)
         ))
         {
-            if (entity.isSpectator())
+            if (entity.isSpectator()
+                    || !spreadContainsEntity(entity))
             {
                 continue;
             }
@@ -210,6 +228,87 @@ public class HearthBlockEntity extends BlockEntity implements Container
         }
 
         return new ThermalUsage(usedCold, usedHot);
+    }
+
+    protected boolean spreadContainsEntity(LivingEntity entity)
+    {
+        BlockPos feet = entity.blockPosition();
+        return spreadPositions.contains(feet)
+                || spreadPositions.contains(feet.above());
+    }
+
+    protected void rebuildSpreadPositions(Level level)
+    {
+        spreadPositions.clear();
+
+        BlockPos source = getBlockPos().above();
+        if (!level.isLoaded(source))
+        {
+            return;
+        }
+
+        ArrayDeque<BlockPos> open = new ArrayDeque<>();
+        Set<BlockPos> visited = new HashSet<>();
+
+        if (canSpreadThrough(level, source)
+                && !level.canSeeSky(source))
+        {
+            open.add(source);
+            visited.add(source);
+        }
+
+        while (!open.isEmpty()
+                && spreadPositions.size() < MAX_SPREAD_VOLUME)
+        {
+            BlockPos current = open.removeFirst();
+
+            if (!withinSpreadRange(source, current)
+                    || level.canSeeSky(current))
+            {
+                continue;
+            }
+
+            spreadPositions.add(current.immutable());
+
+            for (Direction direction : Direction.values())
+            {
+                BlockPos next = current.relative(direction);
+
+                if (visited.add(next)
+                        && withinSpreadRange(source, next)
+                        && level.isLoaded(next)
+                        && canSpreadThrough(level, next))
+                {
+                    open.addLast(next);
+                }
+            }
+        }
+    }
+
+    private static boolean canSpreadThrough(
+            Level level,
+            BlockPos pos
+    )
+    {
+        var state = level.getBlockState(pos);
+
+        return state.isAir()
+                || !state.getFluidState().isEmpty()
+                || state.getCollisionShape(level, pos).isEmpty();
+    }
+
+    private static boolean withinSpreadRange(
+            BlockPos source,
+            BlockPos target
+    )
+    {
+        int dx = target.getX() - source.getX();
+        int dy = target.getY() - source.getY();
+        int dz = target.getZ() - source.getZ();
+
+        return Math.abs(dx) <= THERMAL_RANGE
+                && Math.abs(dy) <= THERMAL_RANGE
+                && Math.abs(dz) <= THERMAL_RANGE;
     }
 
     protected int getThermalEffectAmplifier(int maxStrength)
