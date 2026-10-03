@@ -57,45 +57,153 @@ public final class ThermalSymptomRenderer
                 TemperatureHudData.capture(player)
                         .bodyCelsius();
 
-        int effectLevel =
-                TemperatureRuntime.bodyVisualEffectLevel(
-                        coreCelsius
-                );
-
-        if (effectLevel <= 0)
-        {
-            return;
-        }
-
         boolean cold =
                 coreCelsius
                         < TemperatureRuntime.NORMAL_BODY_C;
 
-        double pulse =
-                effectLevel >= 2
-                        ? 0.90
-                            + 0.10
-                            * Math.sin(
-                                    player.tickCount * 0.22
-                            )
-                        : 1.0;
+        double opacity =
+                cold
+                        ? coldOpacity(coreCelsius)
+                        : heatOpacity(coreCelsius);
+
+        if (opacity <= 0.0)
+        {
+            return;
+        }
 
         /*
-         * Keep this intentionally subtle. The effect should tell the player
-         * that physiology is becoming dangerous without obscuring play or
-         * competing with shaders/resource packs.
+         * Pulse is also continuous. It fades in only once the player reaches
+         * the severe physiological range, avoiding a visible step when crossing
+         * the stage boundary.
          */
-        double opacity =
-                (effectLevel == 1
-                        ? 0.045
-                        : 0.095)
-                * pulse;
+        double severeProgress =
+                cold
+                        ? clamp01((33.5 - coreCelsius) / 0.5)
+                        : clamp01((coreCelsius - 41.0) / 1.0);
+
+        double pulseDepth =
+                0.08 * severeProgress;
+
+        double pulse =
+                1.0
+                        - pulseDepth
+                        + pulseDepth
+                        * Math.sin(
+                                player.tickCount * 0.22
+                        );
+
+        int effectLevel =
+                severeProgress > 0.0
+                        ? 2
+                        : 1;
 
         drawEdgeVignette(
                 graphics,
                 cold ? COLD_RGB : HEAT_RGB,
-                opacity,
+                opacity * pulse,
                 effectLevel
+        );
+    }
+
+    /**
+     * Continuous cold vignette curve.
+     *
+     * 35.0 C -> 6.75%
+     * 34.0 C -> 16%
+     * 33.5 C -> 26%
+     * 33.0 C -> 38%
+     *
+     * The onset is ~1.5x stronger than M7.12j, while every intermediate
+     * temperature is interpolated smoothly rather than snapping between stages.
+     */
+    private static double coldOpacity(double coreCelsius)
+    {
+        if (coreCelsius > 35.0)
+        {
+            return 0.0;
+        }
+
+        if (coreCelsius >= 34.0)
+        {
+            return lerp(
+                    0.0675,
+                    0.16,
+                    (35.0 - coreCelsius) / 1.0
+            );
+        }
+
+        if (coreCelsius >= 33.5)
+        {
+            return lerp(
+                    0.16,
+                    0.26,
+                    (34.0 - coreCelsius) / 0.5
+            );
+        }
+
+        return lerp(
+                0.26,
+                0.38,
+                clamp01((33.5 - coreCelsius) / 0.5)
+        );
+    }
+
+    /**
+     * Heat mirrors the cold curve with physiological heat thresholds.
+     *
+     * 39.5 C -> 6.75%
+     * 40.5 C -> 16%
+     * 41.0 C -> 26%
+     * 42.0 C -> 38%
+     */
+    private static double heatOpacity(double coreCelsius)
+    {
+        if (coreCelsius < 39.5)
+        {
+            return 0.0;
+        }
+
+        if (coreCelsius <= 40.5)
+        {
+            return lerp(
+                    0.0675,
+                    0.16,
+                    (coreCelsius - 39.5) / 1.0
+            );
+        }
+
+        if (coreCelsius <= 41.0)
+        {
+            return lerp(
+                    0.16,
+                    0.26,
+                    (coreCelsius - 40.5) / 0.5
+            );
+        }
+
+        return lerp(
+                0.26,
+                0.38,
+                clamp01((coreCelsius - 41.0) / 1.0)
+        );
+    }
+
+    private static double lerp(
+            double start,
+            double end,
+            double delta
+    )
+    {
+        return start
+                + (end - start)
+                * clamp01(delta);
+    }
+
+    private static double clamp01(double value)
+    {
+        return Math.max(
+                0.0,
+                Math.min(1.0, value)
         );
     }
 
