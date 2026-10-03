@@ -26,6 +26,14 @@ public final class ThermalSymptomRenderer
 
     private static final int VIGNETTE_LAYERS = 8;
 
+    /*
+     * Per-frame camera offset state for shivering. We apply only the delta
+     * between the previous and current target offset so the effect oscillates
+     * around the player's real aim instead of accumulating rotational drift.
+     */
+    private static LocalPlayer shiverPlayer;
+    private static double lastShiverYawOffset;
+
     private ThermalSymptomRenderer()
     {
     }
@@ -46,16 +54,35 @@ public final class ThermalSymptomRenderer
         Minecraft minecraft = Minecraft.getInstance();
         LocalPlayer player = minecraft.player;
 
-        if (player == null
-                || player.isSpectator()
-                || player.isCreative())
+        if (player == null)
         {
+            shiverPlayer = null;
+            lastShiverYawOffset = 0.0;
+            return;
+        }
+
+        if (player.isSpectator()
+                || player.isCreative()
+                || minecraft.isPaused())
+        {
+            clearShiver(player);
             return;
         }
 
         double coreCelsius =
                 TemperatureHudData.capture(player)
                         .bodyCelsius();
+
+        /*
+         * Shivering is deliberately physiological, just like the vignette.
+         * A brutally cold WORLD value does not shake the camera while the core
+         * is still successfully defended. Once core temperature begins falling
+         * into the symptom range, shivering fades in continuously.
+         */
+        applyShiver(
+                player,
+                coreCelsius
+        );
 
         boolean cold =
                 coreCelsius
@@ -103,6 +130,167 @@ public final class ThermalSymptomRenderer
                 opacity * pulse,
                 effectLevel
         );
+    }
+
+    /**
+     * Smooth, intermittent cold shiver.
+     *
+     * 35 C is the onset. From there:
+     * - amplitude rises continuously as core temperature falls;
+     * - bursts become more frequent and last longer;
+     * - at ~33 C the shiver is pronounced but still small enough that aiming
+     *   remains possible.
+     *
+     * Rendering runs every frame, so the motion is smooth rather than a 20 Hz
+     * tick-step. System.nanoTime is animation-only and has no simulation role.
+     */
+    private static void applyShiver(
+            LocalPlayer player,
+            double coreCelsius
+    )
+    {
+        double severity =
+                clamp01(
+                        (35.0 - coreCelsius) / 2.0
+                );
+
+        if (severity <= 0.0)
+        {
+            clearShiver(player);
+            return;
+        }
+
+        if (shiverPlayer != player)
+        {
+            shiverPlayer = player;
+            lastShiverYawOffset = 0.0;
+        }
+
+        double seconds =
+                System.nanoTime()
+                        / 1_000_000_000.0;
+
+        /*
+         * M7.12k.1: the first pass was too subtle above ~34 C.
+         *
+         * Keep the same smooth physiological onset at 35 C, but make the
+         * early phase perceptible to the naked eye. The response is
+         * intentionally front-loaded so shivering becomes a useful warning
+         * before deep hypothermia.
+         */
+        double perceptualSeverity =
+                Math.sqrt(severity);
+
+        double envelopeFrequency =
+                lerp(
+                        0.48,
+                        0.78,
+                        perceptualSeverity
+                );
+
+        double envelopeWave =
+                0.5
+                        + 0.5
+                        * Math.sin(
+                                seconds
+                                        * Math.PI
+                                        * 2.0
+                                        * envelopeFrequency
+                        );
+
+        double dutyThreshold =
+                lerp(
+                        0.72,
+                        0.06,
+                        perceptualSeverity
+                );
+
+        double envelope =
+                smoothstep(
+                        dutyThreshold,
+                        1.0,
+                        envelopeWave
+                );
+
+        double amplitudeDegrees =
+                lerp(
+                        0.045,
+                        0.30,
+                        perceptualSeverity
+                );
+
+        double shiverFrequency =
+                lerp(
+                        7.0,
+                        11.5,
+                        perceptualSeverity
+                );
+
+        double targetOffset =
+                Math.sin(
+                        seconds
+                                * Math.PI
+                                * 2.0
+                                * shiverFrequency
+                )
+                        * amplitudeDegrees
+                        * envelope;
+
+        double delta =
+                targetOffset
+                        - lastShiverYawOffset;
+
+        if (Math.abs(delta) > 1.0e-7)
+        {
+            player.setYRot(
+                    (float) (
+                            player.getYRot()
+                                    + delta
+                    )
+            );
+        }
+
+        lastShiverYawOffset =
+                targetOffset;
+    }
+
+    private static void clearShiver(LocalPlayer player)
+    {
+        if (shiverPlayer == player
+                && Math.abs(lastShiverYawOffset) > 1.0e-7)
+        {
+            player.setYRot(
+                    (float) (
+                            player.getYRot()
+                                    - lastShiverYawOffset
+                    )
+            );
+        }
+
+        shiverPlayer = player;
+        lastShiverYawOffset = 0.0;
+    }
+
+    private static double smoothstep(
+            double edge0,
+            double edge1,
+            double value
+    )
+    {
+        if (edge1 <= edge0)
+        {
+            return value >= edge1
+                    ? 1.0
+                    : 0.0;
+        }
+
+        double t =
+                clamp01(
+                        (value - edge0)
+                                / (edge1 - edge0)
+                );
+
+        return t * t * (3.0 - 2.0 * t);
     }
 
     /**
