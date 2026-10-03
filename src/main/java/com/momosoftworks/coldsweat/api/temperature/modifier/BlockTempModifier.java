@@ -3,6 +3,7 @@ package com.momosoftworks.coldsweat.api.temperature.modifier;
 import com.momosoftworks.coldsweat.api.registry.BlockTempRegistry;
 import com.momosoftworks.coldsweat.api.temperature.block_temp.BlockTemp;
 import com.momosoftworks.coldsweat.api.util.Temperature;
+import com.momosoftworks.coldsweat.fabric.temperature.RadiantHeatRegistry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
@@ -92,6 +93,20 @@ public class BlockTempModifier extends TempModifier
 
                     BlockState state = level.getBlockState(cursor);
                     if (state.isAir())
+                    {
+                        continue;
+                    }
+
+                    /*
+                     * Normal radiant heat is owned by the unified environment
+                     * snapshot from M7.12f-d onward. Do not also convert these
+                     * same blocks into direct WORLD-temperature deltas here.
+                     *
+                     * Non-radiant/magical sources such as soul fire and the
+                     * dimension-dependent Nether portal continue through the
+                     * legacy block-temperature path for now.
+                     */
+                    if (RadiantHeatRegistry.get(state).isPresent())
                     {
                         continue;
                     }

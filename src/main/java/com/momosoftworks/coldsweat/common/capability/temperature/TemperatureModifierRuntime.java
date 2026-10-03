@@ -7,8 +7,11 @@ import com.momosoftworks.coldsweat.api.temperature.modifier.WaterTempModifier;
 import com.momosoftworks.coldsweat.api.util.Temperature;
 import com.momosoftworks.coldsweat.common.capability.handler.EntityTempManager;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
+import com.momosoftworks.coldsweat.fabric.temperature.ApparentTemperatureModel;
 import com.momosoftworks.coldsweat.fabric.temperature.EnvironmentSnapshot;
 import com.momosoftworks.coldsweat.fabric.temperature.EnvironmentSnapshotScanner;
+import com.momosoftworks.coldsweat.fabric.temperature.RoomThermalManager;
+import com.momosoftworks.coldsweat.fabric.temperature.RoomThermalState;
 import com.momosoftworks.coldsweat.fabric.temperature.ThermalEnvironment;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -29,7 +32,8 @@ import java.util.Optional;
  * M7.12 keeps Cold Sweat's modifier identity, but the live WORLD calculation
  * is now evaluated in explicit thermal stages:
  *
- * ambient climate -> local/radiant sources -> direct exposure -> WORLD
+ * ambient climate -> non-radiant local effects + radiant apparent load
+ *                 -> direct exposure -> WORLD
  *
  * This first split is deliberately behavior-preserving. Existing shade/
  * overcast remains in the ambient-climate stage because it was already part
@@ -396,24 +400,85 @@ public final class TemperatureModifierRuntime
                                 AMBIENT_RESPONSE_PER_TICK
                         );
 
-        double rawAfterLocalSources = Temperature.apply(
-                ambientClimate,
+        /*
+         * Spatial environment is refreshed before composing the effective
+         * environment so M7.12f-e can update both instantaneous radiation and
+         * the much slower enclosed-room air reservoir from the same snapshot.
+         */
+        EnvironmentSnapshot.SpatialState spatial =
+                previous != null
+                        ? previous.spatial()
+                        : EnvironmentSnapshot.SpatialState.unavailable();
+
+        RoomThermalState room =
+                previous != null
+                        ? previous.room()
+                        : RoomThermalState.unavailable();
+
+        if (!spatial.available()
+                || entity.tickCount % SPATIAL_SCAN_INTERVAL_TICKS == 0)
+        {
+            EnvironmentSnapshotScanner.ScanResult scan =
+                    EnvironmentSnapshotScanner.scan(entity);
+
+            spatial = scan.spatial();
+
+            if (entity.level() instanceof net.minecraft.server.level.ServerLevel serverLevel)
+            {
+                room =
+                        RoomThermalManager.update(
+                                serverLevel,
+                                scan.room(),
+                                ambientClimate
+                        );
+            }
+            else
+            {
+                room =
+                        RoomThermalState.unavailable();
+            }
+        }
+
+        /*
+         * A truly enclosed connected room now has its own air temperature with
+         * memory. Outdoors/open-sided shelters still use ambient climate
+         * directly.
+         */
+        double localAirClimate =
+                room.available()
+                        ? room.airTemperatureMc()
+                        : ambientClimate;
+
+        /*
+         * Legacy local modifiers now represent only non-radiant/magical local
+         * effects. Normal fire/lava/furnace/campfire heat is measured by the
+         * unified spatial snapshot instead of directly adding degrees here.
+         */
+        double rawAfterNonRadiantSources = Temperature.apply(
+                localAirClimate,
                 entity,
                 Temperature.Trait.WORLD,
                 stages.localSources
         );
 
+        double nonRadiantLocalDelta =
+                rawAfterNonRadiantSources - localAirClimate;
+
         /*
-         * Keep local/radiant load distinct from ambient climate and give that
-         * load a small amount of thermal response time. This prevents a newly
-         * exposed lava/fire source from making the player-facing environment
-         * jump instantly while remaining responsive on survival timescales.
-         *
-         * This is O(1) and reuses the previous environment snapshot - no extra
-         * source scan is introduced.
+         * Convert the independent radiant-load signal into an apparent thermal
+         * contribution using the radiation term from Homeostatic's black-globe
+         * model. Shelter/underground state changes the globe weighting, while
+         * the ambient climate itself is not counted twice.
          */
+        double radiantApparentDelta =
+                ApparentTemperatureModel.radiantTemperatureDelta(
+                        spatial
+                );
+
         double rawLocalSourceDelta =
-                rawAfterLocalSources - ambientClimate;
+                (localAirClimate - ambientClimate)
+                        + nonRadiantLocalDelta
+                        + radiantApparentDelta;
 
         double localSourceDelta =
                 previous == null
@@ -441,18 +506,6 @@ public final class TemperatureModifierRuntime
                         modifiedEffectiveTemperature
                 );
 
-        EnvironmentSnapshot.SpatialState spatial =
-                previous != null
-                        ? previous.spatial()
-                        : EnvironmentSnapshot.SpatialState.unavailable();
-
-        if (!spatial.available()
-                || entity.tickCount % SPATIAL_SCAN_INTERVAL_TICKS == 0)
-        {
-            spatial =
-                    EnvironmentSnapshotScanner.scan(entity);
-        }
-
         ENVIRONMENT_SNAPSHOTS.put(
                 entity,
                 EnvironmentSnapshot.fromCurrentPipeline(
@@ -460,7 +513,8 @@ public final class TemperatureModifierRuntime
                         ambientClimate,
                         afterLocalSources,
                         worldTemperature,
-                        spatial
+                        spatial,
+                        room
                 )
         );
 

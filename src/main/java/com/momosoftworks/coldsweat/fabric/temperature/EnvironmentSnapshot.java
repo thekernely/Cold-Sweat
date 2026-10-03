@@ -21,6 +21,7 @@ public record EnvironmentSnapshot(
         double exposureDelta,
         double effectiveTemperature,
         SpatialState spatial,
+        RoomThermalState room,
         BlockPos origin,
         long capturedGameTime
 )
@@ -30,6 +31,10 @@ public record EnvironmentSnapshot(
         spatial = spatial != null
                 ? spatial
                 : SpatialState.unavailable();
+
+        room = room != null
+                ? room
+                : RoomThermalState.unavailable();
 
         origin = origin != null
                 ? origin.immutable()
@@ -54,7 +59,8 @@ public record EnvironmentSnapshot(
                 ambientClimate,
                 afterLocalSources,
                 effectiveTemperature,
-                SpatialState.unavailable()
+                SpatialState.unavailable(),
+                RoomThermalState.unavailable()
         );
     }
 
@@ -66,12 +72,32 @@ public record EnvironmentSnapshot(
             SpatialState spatial
     )
     {
+        return fromCurrentPipeline(
+                entity,
+                ambientClimate,
+                afterLocalSources,
+                effectiveTemperature,
+                spatial,
+                RoomThermalState.unavailable()
+        );
+    }
+
+    public static EnvironmentSnapshot fromCurrentPipeline(
+            LivingEntity entity,
+            double ambientClimate,
+            double afterLocalSources,
+            double effectiveTemperature,
+            SpatialState spatial,
+            RoomThermalState room
+    )
+    {
         return new EnvironmentSnapshot(
                 ambientClimate,
                 afterLocalSources - ambientClimate,
                 effectiveTemperature - afterLocalSources,
                 effectiveTemperature,
                 spatial,
+                room,
                 entity.blockPosition(),
                 entity.level().getGameTime()
         );
@@ -106,11 +132,11 @@ public record EnvironmentSnapshot(
      * "available" prevents placeholder false/zero values from being mistaken
      * for real measurements during the migration.
      *
-     * radiantLoad is intentionally not an air-temperature delta. In M7.12f-b
-     * it is a provisional positive-source exposure score derived from the
-     * existing BlockTemp definitions. It exists so the scan contract can be
-     * validated before M7.12f-c replaces direct WORLD heating with a dedicated
-     * radiant-heat model.
+     * radiantLoad is intentionally not an air-temperature delta. M7.12f-c
+     * gives it its own radiation-like unit, separate from Cold Sweat's MC/C/F
+     * temperature units. Later body/skin logic can therefore react strongly to
+     * a nearby fire without pretending that the surrounding air itself jumped
+     * by the same number of degrees.
      */
     public record SpatialState(
             boolean available,

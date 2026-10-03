@@ -1,33 +1,29 @@
 package com.momosoftworks.coldsweat.fabric.temperature;
 
-import com.momosoftworks.coldsweat.api.registry.BlockTempRegistry;
-import com.momosoftworks.coldsweat.api.temperature.block_temp.BlockTemp;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.phys.Vec3;
 
-import java.util.Collection;
+import java.util.ArrayDeque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Low-frequency spatial environment pass inspired by Homeostatic's unified
- * Environment scan.
+ * environment scan.
  *
- * M7.12f-b is measurement-only. None of these values alter gameplay yet.
- *
- * One 25 x 25 x 15 pass currently measures:
- * - local and wide sky exposure for shelter/underground classification
- * - nearby water volume
- * - positive thermal-source geometry / provisional radiant load
- *
- * Chunk lookups are cached for the duration of the pass and unloaded chunks
- * are never forced to load. The inner loop reuses one MutableBlockPos.
+ * M7.12f-e extends the snapshot with a capped connected-air flood fill for
+ * enclosed-room thermals. This still refreshes every 16 ticks rather than
+ * continuously.
  */
 public final class EnvironmentSnapshotScanner
 {
@@ -40,17 +36,25 @@ public final class EnvironmentSnapshotScanner
     private static final int WATER_MAX_Y_OFFSET = 5;
     private static final int RADIANT_MAX_Y_OFFSET = 3;
 
+    private static final double RAY_STEPS_PER_BLOCK = 2.0;
+    private static final double OPAQUE_RADIATION_TRANSMISSION = 0.20;
+
+    private static final int ROOM_CELL_CAP = 8192;
+
     private EnvironmentSnapshotScanner()
     {
     }
 
-    public static EnvironmentSnapshot.SpatialState scan(
+    public static ScanResult scan(
             LivingEntity entity
     )
     {
         if (!(entity.level() instanceof ServerLevel level))
         {
-            return EnvironmentSnapshot.SpatialState.unavailable();
+            return new ScanResult(
+                    EnvironmentSnapshot.SpatialState.unavailable(),
+                    RoomSample.unavailable()
+            );
         }
 
         BlockPos origin = entity.blockPosition();
@@ -58,7 +62,7 @@ public final class EnvironmentSnapshotScanner
         Vec3 entityCenter = entity.getBoundingBox().getCenter();
 
         Map<Long, LevelChunk> chunkCache = new HashMap<>();
-        Map<BlockTemp, Double> strongestRadiantSources =
+        Map<RadiantHeatRegistry.Source, Double> strongestSources =
                 new IdentityHashMap<>();
 
         BlockPos.MutableBlockPos cursor =
@@ -106,11 +110,6 @@ public final class EnvironmentSnapshotScanner
                     continue;
                 }
 
-                /*
-                 * One sky query per horizontal column. A small 5x5 kernel is
-                 * used for immediate shelter while the complete 25x25 field
-                 * distinguishes a roof/house from genuinely underground space.
-                 */
                 if (meaningfulSky)
                 {
                     skyCursor.set(
@@ -180,15 +179,11 @@ public final class EnvironmentSnapshotScanner
                         continue;
                     }
 
-                    Collection<BlockTemp> blockTemps =
-                            BlockTempRegistry.getBlockTempsFor(
-                                    state
-                            );
+                    RadiantHeatRegistry.Source source =
+                            RadiantHeatRegistry.get(state)
+                                    .orElse(null);
 
-                    if (blockTemps.size() == 1
-                            && blockTemps.contains(
-                                    BlockTempRegistry.DEFAULT_BLOCK_TEMP
-                            ))
+                    if (source == null)
                     {
                         continue;
                     }
@@ -198,108 +193,64 @@ public final class EnvironmentSnapshotScanner
                     double distance =
                             entityCenter.distanceTo(blockCenter);
 
-                    boolean blockContributed = false;
+                    double radiation =
+                            distance <= 1.0
+                                    ? source.maxRadiation()
+                                    : source.maxRadiation()
+                                            / distance;
 
-                    for (BlockTemp blockTemp : blockTemps)
+                    if (source.fluidScaled())
                     {
-                        if (!blockTemp.isValid(
-                                level,
-                                cursor,
-                                state
-                        ))
-                        {
-                            continue;
-                        }
-
-                        double range =
-                                blockTemp.getRange(
-                                        entity,
-                                        level,
-                                        cursor,
-                                        state
-                                );
-
-                        if (range <= 0.0 || distance > range)
-                        {
-                            continue;
-                        }
-
-                        double source =
-                                blockTemp.getTemperature(
-                                        level,
-                                        entity,
-                                        state,
-                                        cursor,
-                                        distance
-                                );
-
-                        /*
-                         * M7.12f-b only measures positive/radiant heat.
-                         * Ordinary passive cold materials are deliberately not
-                         * treated as negative radiation.
-                         */
-                        if (source <= 0.0)
-                        {
-                            continue;
-                        }
-
-                        if (!state.getFluidState().isEmpty())
-                        {
-                            source *=
-                                    state.getFluidState().getAmount()
-                                            / 8.0;
-                        }
-
-                        if (blockTemp.fades(
-                                entity,
-                                level,
-                                cursor,
-                                state
-                        ))
-                        {
-                            source *= fadeFactor(
-                                    distance,
-                                    range
-                            );
-                        }
-
-                        if (source <= 0.0)
-                        {
-                            continue;
-                        }
-
-                        blockContributed = true;
-
-                        if (blockTemp.usesStrongestSource(
-                                entity,
-                                level,
-                                cursor,
-                                state
-                        ))
-                        {
-                            strongestRadiantSources.merge(
-                                    blockTemp,
-                                    source,
-                                    Math::max
-                            );
-                        }
-                        else
-                        {
-                            additiveRadiantLoad += source;
-                        }
+                        double amount =
+                                state.getFluidState().isEmpty()
+                                        ? 1.0
+                                        : state.getFluidState().getAmount()
+                                                / 8.0;
+                        radiation *= amount;
                     }
 
-                    if (blockContributed)
+                    if (y > 0 && y < 5)
                     {
-                        radiantSourceBlocks++;
+                        radiation *=
+                                (4 - y) * 0.25;
+                    }
+
+                    if (radiation <= 0.0)
+                    {
+                        continue;
+                    }
+
+                    if (isObscured(
+                            level,
+                            entityCenter,
+                            blockCenter,
+                            cursor
+                    ))
+                    {
+                        radiation *=
+                                OPAQUE_RADIATION_TRANSMISSION;
+                    }
+
+                    radiantSourceBlocks++;
+
+                    if (source.strongestOnly())
+                    {
+                        strongestSources.merge(
+                                source,
+                                radiation,
+                                Math::max
+                        );
+                    }
+                    else
+                    {
+                        additiveRadiantLoad += radiation;
                     }
                 }
             }
         }
 
         double radiantLoad = additiveRadiantLoad;
-        for (double strongest :
-                strongestRadiantSources.values())
+        for (double strongest : strongestSources.values())
         {
             radiantLoad += strongest;
         }
@@ -326,15 +277,266 @@ public final class EnvironmentSnapshotScanner
                         && wideSkySamples > 0
                         && wideSkyVisible == 0;
 
-        return EnvironmentSnapshot.SpatialState.measured(
-                sheltered,
-                underground,
-                skyExposure,
-                waterVolume,
-                radiantLoad,
-                scannedBlocks,
-                radiantSourceBlocks
+        EnvironmentSnapshot.SpatialState spatial =
+                EnvironmentSnapshot.SpatialState.measured(
+                        sheltered,
+                        underground,
+                        skyExposure,
+                        waterVolume,
+                        radiantLoad,
+                        scannedBlocks,
+                        radiantSourceBlocks
+                );
+
+        return new ScanResult(
+                spatial,
+                scanRoom(
+                        level,
+                        entity.blockPosition()
+                )
         );
+    }
+
+    /**
+     * Connected passable-air flood fill around the player.
+     *
+     * M7.12f-e.1 deliberately keeps a partially open room as a room. Air that
+     * is directly exposed to the sky becomes a ventilation boundary instead
+     * of causing the flood fill to escape into the entire outdoor world. This
+     * lets an open door rapidly exchange heat without thermally teleporting the
+     * player outside or discarding the room reservoir.
+     *
+     * A player who starts in directly sky-exposed air is still outdoors, and a
+     * very large connected space that reaches the safety cap is still treated
+     * as open/unbounded.
+     */
+    private static RoomSample scanRoom(
+            ServerLevel level,
+            BlockPos start
+    )
+    {
+        BlockPos actualStart = start;
+        BlockState startState =
+                level.getBlockState(actualStart);
+
+        if (!isRoomAir(level, actualStart, startState))
+        {
+            actualStart = start.above();
+            startState = level.getBlockState(actualStart);
+
+            if (!isRoomAir(
+                    level,
+                    actualStart,
+                    startState
+            ))
+            {
+                return RoomSample.unavailable();
+            }
+        }
+
+        boolean meaningfulSky =
+                level.dimensionType().hasSkyLight()
+                        && !level.dimensionType().hasCeiling();
+
+        if (meaningfulSky
+                && level.canSeeSky(actualStart))
+        {
+            return RoomSample.open(1);
+        }
+
+        ArrayDeque<BlockPos> queue =
+                new ArrayDeque<>();
+
+        Set<Long> visited =
+                new HashSet<>();
+
+        Set<Long> sourcePositions =
+                new HashSet<>();
+
+        queue.add(actualStart.immutable());
+        visited.add(actualStart.asLong());
+
+        int volume = 0;
+        int boundaryFaces = 0;
+        int exteriorOpeningFaces = 0;
+        int heatSourceBlocks = 0;
+        double heatPower = 0.0;
+
+        int minX = actualStart.getX();
+        int minY = actualStart.getY();
+        int minZ = actualStart.getZ();
+        int maxX = minX;
+        int maxY = minY;
+        int maxZ = minZ;
+
+        while (!queue.isEmpty())
+        {
+            BlockPos pos = queue.removeFirst();
+            BlockState state =
+                    level.getBlockState(pos);
+
+            volume++;
+
+            minX = Math.min(minX, pos.getX());
+            minY = Math.min(minY, pos.getY());
+            minZ = Math.min(minZ, pos.getZ());
+            maxX = Math.max(maxX, pos.getX());
+            maxY = Math.max(maxY, pos.getY());
+            maxZ = Math.max(maxZ, pos.getZ());
+
+            RadiantHeatRegistry.Source currentSource =
+                    RadiantHeatRegistry.get(state)
+                            .orElse(null);
+
+            if (currentSource != null
+                    && sourcePositions.add(pos.asLong()))
+            {
+                heatSourceBlocks++;
+                heatPower +=
+                        scaledRoomHeatPower(
+                                currentSource,
+                                state
+                        );
+            }
+
+            if (volume >= ROOM_CELL_CAP)
+            {
+                return RoomSample.capped(volume);
+            }
+
+            for (Direction direction :
+                    Direction.values())
+            {
+                BlockPos neighbor =
+                        pos.relative(direction);
+
+                if (!level.isInWorldBounds(neighbor)
+                        || !level.hasChunkAt(neighbor))
+                {
+                    return RoomSample.open(volume);
+                }
+
+                BlockState neighborState =
+                        level.getBlockState(neighbor);
+
+                if (isRoomAir(
+                        level,
+                        neighbor,
+                        neighborState
+                ))
+                {
+                    /*
+                     * Directly exposed outdoor air is a vent boundary. Do not
+                     * flood into it, otherwise opening one door turns the whole
+                     * connected outdoor world into the player's "room".
+                     */
+                    if (meaningfulSky
+                            && level.canSeeSky(neighbor))
+                    {
+                        exteriorOpeningFaces++;
+                        continue;
+                    }
+
+                    long packed =
+                            neighbor.asLong();
+
+                    if (visited.add(packed))
+                    {
+                        queue.addLast(
+                                neighbor.immutable()
+                        );
+                    }
+
+                    continue;
+                }
+
+                boundaryFaces++;
+
+                RadiantHeatRegistry.Source source =
+                        RadiantHeatRegistry.get(
+                                neighborState
+                        ).orElse(null);
+
+                if (source != null
+                        && sourcePositions.add(
+                                neighbor.asLong()
+                        ))
+                {
+                    heatSourceBlocks++;
+                    heatPower +=
+                            scaledRoomHeatPower(
+                                    source,
+                                    neighborState
+                            );
+                }
+            }
+        }
+
+        return new RoomSample(
+                true,
+                true,
+                false,
+                volume,
+                boundaryFaces,
+                exteriorOpeningFaces,
+                heatSourceBlocks,
+                heatPower,
+                new RoomKey(
+                        minX,
+                        minY,
+                        minZ,
+                        maxX,
+                        maxY,
+                        maxZ
+                )
+        );
+    }
+
+    private static double scaledRoomHeatPower(
+            RadiantHeatRegistry.Source source,
+            BlockState state
+    )
+    {
+        double power =
+                source.roomHeatPower();
+
+        if (source.fluidScaled()
+                && !state.getFluidState().isEmpty())
+        {
+            power *=
+                    state.getFluidState().getAmount()
+                            / 8.0;
+        }
+
+        return power;
+    }
+
+    private static boolean isRoomAir(
+            ServerLevel level,
+            BlockPos pos,
+            BlockState state
+    )
+    {
+        if (!state.getFluidState().isEmpty())
+        {
+            return false;
+        }
+
+        /*
+         * Open doors/gates/trapdoors connect two air volumes even though their
+         * collision shape is not necessarily empty.
+         */
+        if (state.hasProperty(BlockStateProperties.OPEN)
+                && state.getValue(BlockStateProperties.OPEN))
+        {
+            return true;
+        }
+
+        return state.getCollisionShape(
+                        level,
+                        pos
+                )
+                .isEmpty();
     }
 
     private static LevelChunk getLoadedChunk(
@@ -361,49 +563,160 @@ public final class EnvironmentSnapshotScanner
         return chunk;
     }
 
-    private static double fadeFactor(
-            double distance,
-            double range
+    private static boolean isObscured(
+            ServerLevel level,
+            Vec3 start,
+            Vec3 end,
+            BlockPos sourcePos
     )
     {
-        if (range <= 0.0)
+        double distance =
+                start.distanceTo(end);
+
+        if (distance <= 1.0)
         {
-            return distance <= 0.5
-                    ? 1.0
-                    : 0.0;
+            return false;
         }
 
-        if (distance <= 0.5)
-        {
-            return 1.0;
-        }
-
-        double progress =
-                (distance - 0.5)
-                        / Math.max(
-                                0.0001,
-                                range - 0.5
-                        );
-
-        double remaining =
-                1.0 - clamp(
-                        progress,
-                        0.0,
-                        1.0
+        int steps =
+                Math.max(
+                        1,
+                        (int) Math.ceil(
+                                distance
+                                        * RAY_STEPS_PER_BLOCK
+                        )
                 );
 
-        return remaining * remaining;
+        BlockPos.MutableBlockPos rayPos =
+                new BlockPos.MutableBlockPos();
+
+        long lastPos = Long.MIN_VALUE;
+
+        for (int step = 1;
+             step < steps;
+             step++)
+        {
+            double progress =
+                    step / (double) steps;
+
+            rayPos.set(
+                    (int) Math.floor(
+                            start.x
+                                    + (end.x - start.x)
+                                    * progress
+                    ),
+                    (int) Math.floor(
+                            start.y
+                                    + (end.y - start.y)
+                                    * progress
+                    ),
+                    (int) Math.floor(
+                            start.z
+                                    + (end.z - start.z)
+                                    * progress
+                    )
+            );
+
+            if (rayPos.getX() == sourcePos.getX()
+                    && rayPos.getY() == sourcePos.getY()
+                    && rayPos.getZ() == sourcePos.getZ())
+            {
+                continue;
+            }
+
+            long packed = rayPos.asLong();
+            if (packed == lastPos)
+            {
+                continue;
+            }
+            lastPos = packed;
+
+            if (level.getBlockState(rayPos)
+                    .isSolidRender())
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
-    private static double clamp(
-            double value,
-            double min,
-            double max
+    public record ScanResult(
+            EnvironmentSnapshot.SpatialState spatial,
+            RoomSample room
     )
     {
-        return Math.max(
-                min,
-                Math.min(max, value)
-        );
+    }
+
+    public record RoomKey(
+            int minX,
+            int minY,
+            int minZ,
+            int maxX,
+            int maxY,
+            int maxZ
+    )
+    {
+    }
+
+    public record RoomSample(
+            boolean available,
+            boolean enclosed,
+            boolean capped,
+            int volume,
+            int boundaryFaces,
+            int exteriorOpeningFaces,
+            int heatSourceBlocks,
+            double heatPower,
+            RoomKey key
+    )
+    {
+        private static final RoomSample UNAVAILABLE =
+                new RoomSample(
+                        false,
+                        false,
+                        false,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0.0,
+                        null
+                );
+
+        public static RoomSample unavailable()
+        {
+            return UNAVAILABLE;
+        }
+
+        public static RoomSample open(int visited)
+        {
+            return new RoomSample(
+                    true,
+                    false,
+                    false,
+                    visited,
+                    0,
+                    0,
+                    0,
+                    0.0,
+                    null
+            );
+        }
+
+        public static RoomSample capped(int visited)
+        {
+            return new RoomSample(
+                    true,
+                    false,
+                    true,
+                    visited,
+                    0,
+                    0,
+                    0,
+                    0.0,
+                    null
+            );
+        }
     }
 }
