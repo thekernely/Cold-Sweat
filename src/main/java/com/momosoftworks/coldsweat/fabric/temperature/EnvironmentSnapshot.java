@@ -49,12 +49,29 @@ public record EnvironmentSnapshot(
             double effectiveTemperature
     )
     {
+        return fromCurrentPipeline(
+                entity,
+                ambientClimate,
+                afterLocalSources,
+                effectiveTemperature,
+                SpatialState.unavailable()
+        );
+    }
+
+    public static EnvironmentSnapshot fromCurrentPipeline(
+            LivingEntity entity,
+            double ambientClimate,
+            double afterLocalSources,
+            double effectiveTemperature,
+            SpatialState spatial
+    )
+    {
         return new EnvironmentSnapshot(
                 ambientClimate,
                 afterLocalSources - ambientClimate,
                 effectiveTemperature - afterLocalSources,
                 effectiveTemperature,
-                SpatialState.unavailable(),
+                spatial,
                 entity.blockPosition(),
                 entity.level().getGameTime()
         );
@@ -89,16 +106,21 @@ public record EnvironmentSnapshot(
      * "available" prevents placeholder false/zero values from being mistaken
      * for real measurements during the migration.
      *
-     * radiantLoad is intentionally not expressed in Celsius. It is reserved as
-     * a separate thermal-radiation signal so later body/skin logic does not
-     * have to pretend every heat source directly changes air temperature.
+     * radiantLoad is intentionally not an air-temperature delta. In M7.12f-b
+     * it is a provisional positive-source exposure score derived from the
+     * existing BlockTemp definitions. It exists so the scan contract can be
+     * validated before M7.12f-c replaces direct WORLD heating with a dedicated
+     * radiant-heat model.
      */
     public record SpatialState(
             boolean available,
             boolean sheltered,
             boolean underground,
+            double skyExposure,
             double waterVolume,
-            double radiantLoad
+            double radiantLoad,
+            int scannedBlocks,
+            int radiantSourceBlocks
     )
     {
         private static final SpatialState UNAVAILABLE =
@@ -107,7 +129,10 @@ public record EnvironmentSnapshot(
                         false,
                         false,
                         0.0,
-                        0.0
+                        0.0,
+                        0.0,
+                        0,
+                        0
                 );
 
         public static SpatialState unavailable()
@@ -118,16 +143,22 @@ public record EnvironmentSnapshot(
         public static SpatialState measured(
                 boolean sheltered,
                 boolean underground,
+                double skyExposure,
                 double waterVolume,
-                double radiantLoad
+                double radiantLoad,
+                int scannedBlocks,
+                int radiantSourceBlocks
         )
         {
             return new SpatialState(
                     true,
                     sheltered,
                     underground,
+                    clamp01(skyExposure),
                     clamp01(waterVolume),
-                    Math.max(0.0, radiantLoad)
+                    Math.max(0.0, radiantLoad),
+                    Math.max(0, scannedBlocks),
+                    Math.max(0, radiantSourceBlocks)
             );
         }
 

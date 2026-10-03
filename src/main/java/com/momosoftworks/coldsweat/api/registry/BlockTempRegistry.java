@@ -23,6 +23,10 @@ public final class BlockTempRegistry
     private static final List<BlockTemp> BLOCK_TEMPS =
             new ArrayList<>();
 
+    /*
+     * Values stored here are immutable snapshots. Returning the cached list
+     * directly avoids allocating List.copyOf(...) for every scanned block.
+     */
     private static final Map<Block, List<BlockTemp>> MAPPED_BLOCKS =
             new IdentityHashMap<>();
 
@@ -51,7 +55,10 @@ public final class BlockTempRegistry
         register(blockTemp, true);
     }
 
-    private static void register(BlockTemp blockTemp, boolean first)
+    private static void register(
+            BlockTemp blockTemp,
+            boolean first
+    )
     {
         if (blockTemp == null)
         {
@@ -76,17 +83,30 @@ public final class BlockTempRegistry
     {
         MAPPED_BLOCKS.clear();
 
+        Map<Block, List<BlockTemp>> mutable =
+                new IdentityHashMap<>();
+
         for (BlockTemp blockTemp : BLOCK_TEMPS)
         {
-            for (Block block : blockTemp.getAffectedBlocks())
+            for (Block block :
+                    blockTemp.getAffectedBlocks())
             {
-                MAPPED_BLOCKS
+                mutable
                         .computeIfAbsent(
                                 block,
                                 key -> new ArrayList<>()
                         )
                         .add(blockTemp);
             }
+        }
+
+        for (Map.Entry<Block, List<BlockTemp>> entry :
+                mutable.entrySet())
+        {
+            MAPPED_BLOCKS.put(
+                    entry.getKey(),
+                    List.copyOf(entry.getValue())
+            );
         }
     }
 
@@ -101,7 +121,9 @@ public final class BlockTempRegistry
         return List.copyOf(BLOCK_TEMPS);
     }
 
-    public static Collection<BlockTemp> getBlockTempsFor(BlockState state)
+    public static Collection<BlockTemp> getBlockTempsFor(
+            BlockState state
+    )
     {
         if (state.isAir())
         {
@@ -110,13 +132,16 @@ public final class BlockTempRegistry
 
         Block block = state.getBlock();
 
-        List<BlockTemp> cached = MAPPED_BLOCKS.get(block);
+        List<BlockTemp> cached =
+                MAPPED_BLOCKS.get(block);
+
         if (cached != null && !cached.isEmpty())
         {
-            return List.copyOf(cached);
+            return cached;
         }
 
-        LinkedHashSet<BlockTemp> matches = new LinkedHashSet<>();
+        LinkedHashSet<BlockTemp> matches =
+                new LinkedHashSet<>();
 
         for (BlockTemp blockTemp : BLOCK_TEMPS)
         {
@@ -131,11 +156,7 @@ public final class BlockTempRegistry
                         ? List.of(DEFAULT_BLOCK_TEMP)
                         : List.copyOf(matches);
 
-        MAPPED_BLOCKS.put(
-                block,
-                new ArrayList<>(resolved)
-        );
-
+        MAPPED_BLOCKS.put(block, resolved);
         return resolved;
     }
 
@@ -147,7 +168,12 @@ public final class BlockTempRegistry
     {
         return getBlockTempsFor(state)
                 .stream()
-                .filter(temp -> temp.isValid(level, pos, state))
+                .filter(temp ->
+                        temp.isValid(
+                                level,
+                                pos,
+                                state
+                        ))
                 .findFirst();
     }
 

@@ -8,6 +8,7 @@ import com.momosoftworks.coldsweat.api.util.Temperature;
 import com.momosoftworks.coldsweat.common.capability.handler.EntityTempManager;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
 import com.momosoftworks.coldsweat.fabric.temperature.EnvironmentSnapshot;
+import com.momosoftworks.coldsweat.fabric.temperature.EnvironmentSnapshotScanner;
 import com.momosoftworks.coldsweat.fabric.temperature.ThermalEnvironment;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -51,6 +52,8 @@ public final class TemperatureModifierRuntime
     private static final double AMBIENT_RESPONSE_PER_TICK = 0.12;
 
     private static final double LOCAL_SOURCE_RESPONSE_PER_TICK = 0.20;
+
+    private static final int SPATIAL_SCAN_INTERVAL_TICKS = 16;
 
     private static final Map<LivingEntity, WorldModifierStages> WORLD_MODIFIERS =
             new IdentityHashMap<>();
@@ -438,13 +441,26 @@ public final class TemperatureModifierRuntime
                         modifiedEffectiveTemperature
                 );
 
+        EnvironmentSnapshot.SpatialState spatial =
+                previous != null
+                        ? previous.spatial()
+                        : EnvironmentSnapshot.SpatialState.unavailable();
+
+        if (!spatial.available()
+                || entity.tickCount % SPATIAL_SCAN_INTERVAL_TICKS == 0)
+        {
+            spatial =
+                    EnvironmentSnapshotScanner.scan(entity);
+        }
+
         ENVIRONMENT_SNAPSHOTS.put(
                 entity,
                 EnvironmentSnapshot.fromCurrentPipeline(
                         entity,
                         ambientClimate,
                         afterLocalSources,
-                        worldTemperature
+                        worldTemperature,
+                        spatial
                 )
         );
 
