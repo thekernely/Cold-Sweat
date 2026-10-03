@@ -7,6 +7,7 @@ import com.momosoftworks.coldsweat.api.temperature.modifier.WaterTempModifier;
 import com.momosoftworks.coldsweat.api.util.Temperature;
 import com.momosoftworks.coldsweat.common.capability.handler.EntityTempManager;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
+import com.momosoftworks.coldsweat.fabric.temperature.EnvironmentSnapshot;
 import com.momosoftworks.coldsweat.fabric.temperature.ThermalEnvironment;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -57,7 +58,13 @@ public final class TemperatureModifierRuntime
     private static final Map<LivingEntity, List<TempModifier>> BASE_MODIFIERS =
             new IdentityHashMap<>();
 
-    private static final Map<LivingEntity, ThermalEnvironment> THERMAL_ENVIRONMENTS =
+    /*
+     * M7.12f-a promotes the environment cache from a thermal-only breakdown to
+     * a future-facing snapshot object. For this foundation slice, the snapshot
+     * mirrors the existing live pipeline exactly; spatial fields are explicitly
+     * marked unavailable until the unified scan is introduced.
+     */
+    private static final Map<LivingEntity, EnvironmentSnapshot> ENVIRONMENT_SNAPSHOTS =
             new IdentityHashMap<>();
 
     private static boolean initialized;
@@ -182,19 +189,30 @@ public final class TemperatureModifierRuntime
     }
 
     /**
-     * Latest server-side breakdown of the entity's thermal environment.
+     * Canonical cached environment snapshot for later M7/M8 systems.
      *
-     * WORLD remains the canonical synchronized effective/apparent value. This
-     * breakdown exists so later M7/M8 systems can reason about ambient climate
-     * and local load separately without re-running expensive scans.
+     * M7.12f-a is intentionally behavior-neutral: only the thermal fields are
+     * populated from the current modifier pipeline. Unified spatial data is
+     * added by the next migration slice.
+     */
+    public static Optional<EnvironmentSnapshot> getEnvironmentSnapshot(
+            LivingEntity entity
+    )
+    {
+        return Optional.ofNullable(
+                ENVIRONMENT_SNAPSHOTS.get(entity)
+        );
+    }
+
+    /**
+     * Compatibility view retained while callers migrate to EnvironmentSnapshot.
      */
     public static Optional<ThermalEnvironment> getThermalEnvironment(
             LivingEntity entity
     )
     {
-        return Optional.ofNullable(
-                THERMAL_ENVIRONMENTS.get(entity)
-        );
+        return getEnvironmentSnapshot(entity)
+                .map(EnvironmentSnapshot::thermalEnvironment);
     }
 
     private static void addWorldModifier(
@@ -363,8 +381,8 @@ public final class TemperatureModifierRuntime
                 stages.ambient
         );
 
-        ThermalEnvironment previous =
-                THERMAL_ENVIRONMENTS.get(entity);
+        EnvironmentSnapshot previous =
+                ENVIRONMENT_SNAPSHOTS.get(entity);
 
         double ambientClimate =
                 previous == null
@@ -398,7 +416,7 @@ public final class TemperatureModifierRuntime
                 previous == null
                         ? rawLocalSourceDelta
                         : approach(
-                                previous.localSourceDelta(),
+                                previous.localThermalLoad(),
                                 rawLocalSourceDelta,
                                 LOCAL_SOURCE_RESPONSE_PER_TICK
                         );
@@ -420,9 +438,10 @@ public final class TemperatureModifierRuntime
                         modifiedEffectiveTemperature
                 );
 
-        THERMAL_ENVIRONMENTS.put(
+        ENVIRONMENT_SNAPSHOTS.put(
                 entity,
-                ThermalEnvironment.fromStages(
+                EnvironmentSnapshot.fromCurrentPipeline(
+                        entity,
                         ambientClimate,
                         afterLocalSources,
                         worldTemperature
@@ -754,7 +773,7 @@ public final class TemperatureModifierRuntime
     private static void removeEntity(LivingEntity entity)
     {
         TemperatureEffectRuntime.clear(entity);
-        THERMAL_ENVIRONMENTS.remove(entity);
+        ENVIRONMENT_SNAPSHOTS.remove(entity);
 
         WorldModifierStages worldRemoved =
                 WORLD_MODIFIERS.remove(entity);
