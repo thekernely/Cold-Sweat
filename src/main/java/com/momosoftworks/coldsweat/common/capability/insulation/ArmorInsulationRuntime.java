@@ -7,6 +7,7 @@ import com.momosoftworks.coldsweat.api.temperature.modifier.ArmorInsulationTempM
 import com.momosoftworks.coldsweat.api.util.Temperature;
 import com.momosoftworks.coldsweat.common.capability.handler.ItemInsulationManager;
 import com.momosoftworks.coldsweat.core.init.ModItemComponents;
+import com.momosoftworks.coldsweat.fabric.temperature.ThermoregulationRuntime;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -19,10 +20,10 @@ import java.util.WeakHashMap;
 /**
  * Calculates equipped armor insulation and applies it to the RATE trait.
  *
- * Upstream recalculates equipment insulation every 20 ticks and installs an
- * ArmorInsulationTempModifier on RATE. The Fabric runtime keeps the same 20
- * tick equipment cadence, while the cached modifier itself is applied whenever
- * RATE is resolved so hot/cold sign changes still select the correct side.
+ * M7.12h inserts the high-inertia thermoregulation transform before the
+ * existing insulation transform. RATE attributes still resolve first in
+ * EntityTempManager, so custom RATE modifiers remain part of the environmental
+ * pressure that reaches this layer.
  */
 public final class ArmorInsulationRuntime
 {
@@ -36,6 +37,18 @@ public final class ArmorInsulationRuntime
             return rate;
         }
 
+        /*
+         * Legacy environmental RATE is now a stress/demand signal, not a raw
+         * CORE delta. Convert it to slow physiological drift first; equipment
+         * insulation then reduces that remaining transfer exactly where it did
+         * before.
+         */
+        double regulatedRate =
+                ThermoregulationRuntime.applyEnvironmentalRate(
+                        player,
+                        rate
+                );
+
         CachedInsulation cached = CACHE.get(player);
         if (cached == null || player.tickCount % 20 == 0)
         {
@@ -45,11 +58,11 @@ public final class ArmorInsulationRuntime
 
         if (cached.cold <= 0.0 && cached.heat <= 0.0)
         {
-            return rate;
+            return regulatedRate;
         }
 
         return cached.modifier.update(
-                rate,
+                regulatedRate,
                 player,
                 Temperature.Trait.RATE
         );

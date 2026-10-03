@@ -2,12 +2,26 @@ package com.momosoftworks.coldsweat.common.capability.temperature;
 
 /**
  * Loader-independent core body-temperature runtime math.
+ *
+ * M7.12h keeps Cold Sweat's normalized CORE/BODY traits, but moves their
+ * environmental evolution onto a high-inertia homeostatic model. The legacy
+ * method signatures remain because the surrounding runtime and compatibility
+ * surface still call them.
  */
 public final class TemperatureRuntime
 {
     public static final double DEFAULT_FREEZING_POINT = 0.5;
     public static final double DEFAULT_BURNING_POINT = 1.7;
     public static final double DEFAULT_TEMP_RATE = 1.0;
+
+    public static final double NORMAL_BODY_C = 37.0;
+
+    /**
+     * A displaced core returns toward 37 C slowly rather than snapping back.
+     * 0.45 C/min is deliberately conservative; outward environmental drift is
+     * owned by the M7.12h thermoregulation runtime.
+     */
+    private static final double CORE_RECOVERY_C_PER_MINUTE = 0.45;
 
     private TemperatureRuntime()
     {
@@ -48,8 +62,11 @@ public final class TemperatureRuntime
     }
 
     /**
-     * Calculates Cold Sweat's raw core-temperature rate before RATE attribute
-     * modifiers and entity-climate multipliers are applied.
+     * Calculates Cold Sweat's legacy environmental pressure before RATE
+     * attributes and armor insulation are applied.
+     *
+     * M7.12h no longer adds this value directly to CORE. Instead it becomes a
+     * compact severity signal consumed by ThermoregulationRuntime.
      */
     public static double calculateTemperatureRate(
             double worldTemp,
@@ -107,11 +124,14 @@ public final class TemperatureRuntime
     }
 
     /**
-     * Cold Sweat's equilibrium behavior from AbstractTempCap.
+     * High-inertia recovery toward neutral CORE.
      *
-     * This returns the amount to add to the newly-calculated core temperature;
-     * the caller still performs upstream's "do not fight a CORE modifier"
-     * direction check before applying it.
+     * The environmental caller already prevents equilibrium from fighting an
+     * active outward RATE in the opposite direction. That means this method can
+     * simply describe the body's slow return toward ~37 C whenever regulation
+     * has spare capacity or exposure changes direction.
+     *
+     * The legacy parameters are intentionally retained for API compatibility.
      */
     public static double calculateEquilibriumDelta(
             double coreTemp,
@@ -125,58 +145,75 @@ public final class TemperatureRuntime
             boolean peacefulImmunity
     )
     {
-        int worldTempSign =
-                getWorldTemperatureSign(
-                        worldTemp,
-                        minTemp,
-                        maxTemp
-                );
-
-        boolean fullyColdDampened =
-                worldTempSign < 0
-                        && (coldDampening >= 1.0
-                            || peacefulImmunity);
-
-        boolean fullyHeatDampened =
-                worldTempSign > 0
-                        && (heatDampening >= 1.0
-                            || peacefulImmunity);
-
-        int coreTempSign = sign(coreTemp);
-        double amount = 0.0;
-
-        if (fullyColdDampened && coreTempSign < 0)
-        {
-            amount = tempRate / 10.0;
-        }
-        else if (fullyHeatDampened && coreTempSign > 0)
-        {
-            amount = tempRate / -10.0;
-        }
-        else if (coreTempSign != 0
-                && coreTempSign != worldTempSign)
-        {
-            amount =
-                    (coreTempSign == 1
-                            ? worldTemp - maxTemp
-                            : worldTemp - minTemp)
-                    / 3.0;
-        }
-
-        if (Double.compare(amount, 0.0) == 0)
+        if (Math.abs(coreTemp) < 1.0e-9)
         {
             return 0.0;
         }
 
-        double changeBy = maxAbs(
-                amount * tempRate,
-                tempRate / 10.0 * -coreTempSign
-        );
+        double currentC = bodyStressToCelsius(coreTemp);
+
+        double maxDeltaCPerTick =
+                CORE_RECOVERY_C_PER_MINUTE / (60.0 * 20.0);
+
+        double deltaC =
+                clamp(
+                        NORMAL_BODY_C - currentC,
+                        -maxDeltaCPerTick,
+                        maxDeltaCPerTick
+                );
+
+        double nextStress =
+                celsiusToBodyStress(currentC + deltaC);
 
         return minAbs(
-                changeBy,
+                nextStress - coreTemp,
                 -storedCoreTemp
         );
+    }
+
+    /**
+     * Canonical presentation/physiology mapping for normalized Cold Sweat body
+     * stress. This was originally client-only HUD math; M7.12h promotes it so
+     * the server's core inertia and the HUD use exactly the same scale.
+     *
+     * Anchors:
+     *   0 -> 37 C
+     * -50 -> 35 C
+     * -100 -> 33 C
+     * +50 -> 41 C
+     * +100 -> 43 C
+     */
+    public static double bodyStressToCelsius(double bodyStress)
+    {
+        if (bodyStress <= 0.0)
+        {
+            return NORMAL_BODY_C + bodyStress * 0.04;
+        }
+
+        if (bodyStress <= 50.0)
+        {
+            return NORMAL_BODY_C + bodyStress * 0.08;
+        }
+
+        return 41.0 + (bodyStress - 50.0) * 0.04;
+    }
+
+    /**
+     * Exact inverse of bodyStressToCelsius.
+     */
+    public static double celsiusToBodyStress(double celsius)
+    {
+        if (celsius <= NORMAL_BODY_C)
+        {
+            return (celsius - NORMAL_BODY_C) / 0.04;
+        }
+
+        if (celsius <= 41.0)
+        {
+            return (celsius - NORMAL_BODY_C) / 0.08;
+        }
+
+        return 50.0 + (celsius - 41.0) / 0.04;
     }
 
     /**
@@ -212,13 +249,6 @@ public final class TemperatureRuntime
                 min,
                 Math.min(max, value)
         );
-    }
-
-    private static double maxAbs(double first, double second)
-    {
-        return Math.abs(first) >= Math.abs(second)
-                ? first
-                : second;
     }
 
     private static double minAbs(double first, double second)
