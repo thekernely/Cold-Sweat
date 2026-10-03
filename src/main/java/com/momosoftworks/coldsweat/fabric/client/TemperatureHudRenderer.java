@@ -48,7 +48,7 @@ public final class TemperatureHudRenderer
         Minecraft minecraft = Minecraft.getInstance();
         LocalPlayer player = minecraft.player;
 
-        if (player == null || player.isSpectator())
+        if (player == null || player.isSpectator() || player.isCreative())
         {
             return;
         }
@@ -471,3 +471,4 @@ public final class TemperatureHudRenderer
                 * Math.max(0.0, Math.min(1.0, delta));
     }
 }
+
