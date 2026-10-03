@@ -206,6 +206,12 @@ public class BlockTempModifier extends TempModifier
                                                         level,
                                                         cursor,
                                                         state
+                                                ),
+                                                key.usesStrongestSource(
+                                                        entity,
+                                                        level,
+                                                        cursor,
+                                                        state
                                                 )
                                         )
                                 );
@@ -377,6 +383,7 @@ public class BlockTempModifier extends TempModifier
         private final double minTemperature;
         private final double maxTemperature;
         private final boolean logarithmic;
+        private final boolean strongestSource;
 
         private double totalEffect;
 
@@ -385,7 +392,8 @@ public class BlockTempModifier extends TempModifier
                 double maxEffect,
                 double minTemperature,
                 double maxTemperature,
-                boolean logarithmic
+                boolean logarithmic,
+                boolean strongestSource
         )
         {
             this.minEffect = minEffect;
@@ -393,10 +401,24 @@ public class BlockTempModifier extends TempModifier
             this.minTemperature = minTemperature;
             this.maxTemperature = maxTemperature;
             this.logarithmic = logarithmic;
+            this.strongestSource = strongestSource;
         }
 
         private void add(double amount)
         {
+            if (strongestSource)
+            {
+                if (Math.abs(amount) > Math.abs(totalEffect))
+                {
+                    totalEffect = clamp(
+                            amount,
+                            minEffect,
+                            maxEffect
+                    );
+                }
+                return;
+            }
+
             if (!logarithmic)
             {
                 totalEffect = clamp(

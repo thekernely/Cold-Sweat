@@ -17,18 +17,26 @@ import java.util.function.Function;
 /**
  * Fabric biome-temperature modifier.
  *
- * Uses Cold Sweat's upstream vanilla biome ranges when configured, blended
- * between coldest/hottest values using the world time multiplier. Biomes that
- * are absent or explicitly disabled in the upstream table retain a vanilla
- * base-temperature fallback until the full data/config pipeline is restored.
+ * M7.12e deliberately moves away from a tight local sample. Homeostatic's
+ * environment model averages a 7x7 area at one-chunk spacing (three chunks in
+ * every horizontal direction) before body-temperature calculations. We adopt
+ * the same broad-climate idea here while retaining Cold Sweat's own configured
+ * biome ranges, time-of-day model, dimension offsets, and modifier API.
+ *
+ * A single biome boundary can therefore only replace a small fraction of the
+ * climate sample instead of changing the player's apparent surroundings by
+ * several degrees at once.
  */
 public class BiomeTempModifier extends TempModifier
 {
+    private static final int SAMPLE_SPACING_BLOCKS = 16;
+
     private final int samples;
 
     public BiomeTempModifier()
     {
-        this(16);
+        // 7 x 7 = three chunks in every horizontal direction.
+        this(49);
     }
 
     public BiomeTempModifier(int samples)
@@ -53,19 +61,29 @@ public class BiomeTempModifier extends TempModifier
         double timeMultiplier =
                 WorldTemperatureUtil.getTimeMultiplier(level);
 
+        /*
+         * Keep the kernel centered on the player's real position rather than
+         * snapping it to a chunk. Individual biome samples may change while
+         * moving, but each contributes only 1/49 of the default climate value.
+         * The runtime's ambient inertia then smooths the remaining small step.
+         */
         for (int x = 0; x < side && collected < samples; x++)
         {
             for (int z = 0; z < side && collected < samples; z++)
             {
-                int xOffset = (x - half) * 10;
-                int zOffset = (z - half) * 10;
+                int xOffset =
+                        (x - half) * SAMPLE_SPACING_BLOCKS;
+                int zOffset =
+                        (z - half) * SAMPLE_SPACING_BLOCKS;
+
                 BlockPos samplePos = new BlockPos(
                         center.getX() + xOffset,
                         center.getY(),
                         center.getZ() + zOffset
                 );
 
-                Holder<Biome> biome = level.getBiome(samplePos);
+                Holder<Biome> biome =
+                        level.getBiome(samplePos);
 
                 total += getBiomeTemperature(
                         biome,
@@ -87,7 +105,9 @@ public class BiomeTempModifier extends TempModifier
                 WorldTemperatureSettings.getDimensionTempOffset(level);
 
         return temperature ->
-                temperature + sampledTemperature + dimensionOffset;
+                temperature
+                        + sampledTemperature
+                        + dimensionOffset;
     }
 
     private static double getBiomeTemperature(

@@ -130,4 +130,20 @@ public abstract class BlockTemp
     {
         return true;
     }
+
+    /**
+     * Some physical source families represent one continuous thermal field
+     * even when Minecraft renders them as many blocks. Those sources can opt
+     * into strongest-source aggregation so spreading fluid cells do not become
+     * independent heaters.
+     */
+    public boolean usesStrongestSource(
+            LivingEntity entity,
+            Level level,
+            BlockPos pos,
+            BlockState state
+    )
+    {
+        return false;
+    }
 }

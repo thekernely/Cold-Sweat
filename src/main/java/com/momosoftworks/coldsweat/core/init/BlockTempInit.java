@@ -27,15 +27,22 @@ public final class BlockTempInit
         );
 
         /*
-         * Vanilla world.toml defaults.
+         * Vanilla world.toml defaults, with one deliberate M7.12 correction:
+         *
+         * Lava is a continuous radiant field rather than "one heater per
+         * fluid voxel". It therefore uses strongest-source aggregation.
+         *
+         * +75 F relative is ~+41.7 C at the source before distance/obstruction
+         * attenuation. This is an initial playtest value, not permanent
+         * balance.
          *
          * Boiler and icebox entries intentionally wait for M6 because those
          * blocks do not exist in the Fabric port yet.
          */
         BlockTempRegistry.register(
-                StaticBlockTemp.forBlockFahrenheit(
+                StaticBlockTemp.forBlockFahrenheitStrongest(
                         Blocks.LAVA,
-                        30, 7, 200, 1000.0, true
+                        75, 7, 200, 1000.0, true
                 )
         );
 
@@ -72,35 +79,19 @@ public final class BlockTempInit
                 )
         );
 
-        BlockTempRegistry.register(
-                StaticBlockTemp.forBlockFahrenheit(
-                        Blocks.ICE,
-                        -10, 4, 24, 33.0, false
-                )
-        );
-
-        BlockTempRegistry.register(
-                StaticBlockTemp.forBlockFahrenheit(
-                        Blocks.PACKED_ICE,
-                        -15, 4, 48, 16.0, false
-                )
-        );
-
-        BlockTempRegistry.register(
-                StaticBlockTemp.forBlockFahrenheit(
-                        Blocks.BLUE_ICE,
-                        -20, 4, 64, 0.0, false
-                )
-        );
-
-        BlockTempRegistry.register(
-                StaticBlockTemp.forTagFahrenheit(
-                        BlockTags.ICE,
-                        -6, 4, 27, 33.0,
-                        state -> true,
-                        false
-                )
-        );
+        /*
+         * M7.12e: ordinary ice surfaces are not local "cold radiators".
+         *
+         * Homeostatic models cold primarily through broad climate, water,
+         * wetness/submersion, and body heat transfer. It does not register
+         * vanilla ice/packed ice/blue ice as block-radiation sources.
+         *
+         * This avoids the physically odd case where stepping from regular ice
+         * onto packed ice changes the surrounding air temperature by several
+         * degrees. Powder snow/freezing, water exposure, future wind/shelter,
+         * and deliberately active cooling machines remain valid cold-pressure
+         * mechanisms.
+         */
 
         ColdSweatFabric.LOGGER.info(
                 "Registered {} Cold Sweat block temperature source type(s).",

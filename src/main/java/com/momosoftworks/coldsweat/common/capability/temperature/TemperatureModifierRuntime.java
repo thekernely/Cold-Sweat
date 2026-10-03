@@ -41,6 +41,14 @@ public final class TemperatureModifierRuntime
      * but not teleport the apparent environment several degrees in one tick.
      * 0.20 reaches ~99% of a new source load in about one second at 20 TPS.
      */
+    /*
+     * Ambient climate should not visibly jump as biome/shade/elevation
+     * modifiers refresh. This is intentionally lighter/faster than player
+     * core inertia: the surroundings HUD should still react within about a
+     * second, just without staircase transitions.
+     */
+    private static final double AMBIENT_RESPONSE_PER_TICK = 0.12;
+
     private static final double LOCAL_SOURCE_RESPONSE_PER_TICK = 0.20;
 
     private static final Map<LivingEntity, WorldModifierStages> WORLD_MODIFIERS =
@@ -89,6 +97,11 @@ public final class TemperatureModifierRuntime
     /**
      * Standalone player WORLD chain split into explicit semantic stages.
      *
+     * M7.12e refreshes the normal environmental snapshot on one shared
+     * 16-tick cadence, inspired by Homeostatic's environment update model.
+     * This avoids independent biome/shade/elevation/source modifiers changing
+     * on different frames and producing a visibly "busy" surroundings value.
+     *
      * The ordering remains equivalent to the previously-live chain:
      *
      * Biome -> Shade -> Elevation -> Cave Biomes
@@ -106,33 +119,33 @@ public final class TemperatureModifierRuntime
         addWorldModifier(
                 entity,
                 stages.ambient,
-                createRegistered("biomes").tickRate(20)
+                createRegistered("biomes").tickRate(16)
         );
         addWorldModifier(
                 entity,
                 stages.ambient,
-                createRegistered("shade").tickRate(10)
+                createRegistered("shade").tickRate(16)
         );
         addWorldModifier(
                 entity,
                 stages.ambient,
-                createRegistered("elevation").tickRate(20)
+                createRegistered("elevation").tickRate(16)
         );
         addWorldModifier(
                 entity,
                 stages.ambient,
-                createRegistered("cave_biomes").tickRate(20)
+                createRegistered("cave_biomes").tickRate(16)
         );
 
         addWorldModifier(
                 entity,
                 stages.localSources,
-                createRegistered("blocks").tickRate(5)
+                createRegistered("blocks").tickRate(16)
         );
         addWorldModifier(
                 entity,
                 stages.localSources,
-                createRegistered("entities").tickRate(10)
+                createRegistered("entities").tickRate(16)
         );
 
         WORLD_MODIFIERS.put(entity, stages);
@@ -343,12 +356,24 @@ public final class TemperatureModifierRuntime
          * TempModifier machinery. This gives us semantic stage boundaries
          * without duplicating biome/cave/block/entity scans.
          */
-        double ambientClimate = Temperature.apply(
+        double rawAmbientClimate = Temperature.apply(
                 0.0,
                 entity,
                 Temperature.Trait.WORLD,
                 stages.ambient
         );
+
+        ThermalEnvironment previous =
+                THERMAL_ENVIRONMENTS.get(entity);
+
+        double ambientClimate =
+                previous == null
+                        ? rawAmbientClimate
+                        : approach(
+                                previous.ambientClimate(),
+                                rawAmbientClimate,
+                                AMBIENT_RESPONSE_PER_TICK
+                        );
 
         double rawAfterLocalSources = Temperature.apply(
                 ambientClimate,
@@ -368,9 +393,6 @@ public final class TemperatureModifierRuntime
          */
         double rawLocalSourceDelta =
                 rawAfterLocalSources - ambientClimate;
-
-        ThermalEnvironment previous =
-                THERMAL_ENVIRONMENTS.get(entity);
 
         double localSourceDelta =
                 previous == null

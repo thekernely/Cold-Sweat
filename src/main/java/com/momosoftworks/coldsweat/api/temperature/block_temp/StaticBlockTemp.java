@@ -24,6 +24,7 @@ public final class StaticBlockTemp extends SimpleBlockTemp
     private final TagKey<Block> tag;
     private final Predicate<BlockState> statePredicate;
     private final boolean invertSoulFire;
+    private final boolean strongestSource;
 
     private StaticBlockTemp(
             double temperature,
@@ -35,6 +36,7 @@ public final class StaticBlockTemp extends SimpleBlockTemp
             TagKey<Block> tag,
             Predicate<BlockState> statePredicate,
             boolean invertSoulFire,
+            boolean strongestSource,
             Block... blocks
     )
     {
@@ -56,6 +58,7 @@ public final class StaticBlockTemp extends SimpleBlockTemp
                         ? statePredicate
                         : state -> true;
         this.invertSoulFire = invertSoulFire;
+        this.strongestSource = strongestSource;
     }
 
     public static StaticBlockTemp forBlockFahrenheit(
@@ -65,6 +68,51 @@ public final class StaticBlockTemp extends SimpleBlockTemp
             double maxEffectF,
             Double temperatureLimitF,
             boolean logarithmic
+    )
+    {
+        return forBlockFahrenheit(
+                block,
+                temperatureF,
+                range,
+                maxEffectF,
+                temperatureLimitF,
+                logarithmic,
+                false
+        );
+    }
+
+    /**
+     * Variant for continuous physical fields such as lava. Multiple matching
+     * blocks contribute only the strongest local source instead of stacking.
+     */
+    public static StaticBlockTemp forBlockFahrenheitStrongest(
+            Block block,
+            double temperatureF,
+            double range,
+            double maxEffectF,
+            Double temperatureLimitF,
+            boolean logarithmic
+    )
+    {
+        return forBlockFahrenheit(
+                block,
+                temperatureF,
+                range,
+                maxEffectF,
+                temperatureLimitF,
+                logarithmic,
+                true
+        );
+    }
+
+    private static StaticBlockTemp forBlockFahrenheit(
+            Block block,
+            double temperatureF,
+            double range,
+            double maxEffectF,
+            Double temperatureLimitF,
+            boolean logarithmic,
+            boolean strongestSource
     )
     {
         double temperature = Temperature.convert(
@@ -113,6 +161,7 @@ public final class StaticBlockTemp extends SimpleBlockTemp
                 null,
                 state -> true,
                 false,
+                strongestSource,
                 block
         );
     }
@@ -172,7 +221,8 @@ public final class StaticBlockTemp extends SimpleBlockTemp
                 false,
                 tag,
                 statePredicate,
-                invertSoulFire
+                invertSoulFire,
+                false
         );
     }
 
@@ -211,5 +261,16 @@ public final class StaticBlockTemp extends SimpleBlockTemp
         }
 
         return temperature;
+    }
+
+    @Override
+    public boolean usesStrongestSource(
+            LivingEntity entity,
+            Level level,
+            BlockPos pos,
+            BlockState state
+    )
+    {
+        return strongestSource;
     }
 }
