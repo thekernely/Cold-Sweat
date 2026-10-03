@@ -7,12 +7,17 @@ import net.minecraft.world.entity.LivingEntity;
 import java.util.function.Function;
 
 /**
- * Cold Sweat's WORLD-trait wetness modifier.
+ * Cold Sweat's water/rain exposure state.
  *
- * M4.12 restores the upstream soak/rain/dry state machine and defaults. The
- * full biome-specific water-temperature lookup is intentionally deferred until
- * the biome config/data bridge exists; until then water uses world.toml's
- * default -10 F relative contribution.
+ * M7.12g separates wetness from literal WORLD temperature. Rain now builds and
+ * dries the same persistent wetness state without pretending that a wet player
+ * makes the surrounding air several extra degrees colder. Direct immersion
+ * still applies the configured water-temperature delta to WORLD for the
+ * transitional M7 environment model.
+ *
+ * The tracked wetness fraction is intentionally exposed for the upcoming
+ * high-inertia body regulator, where rain-soaked clothing/skin can increase
+ * heat loss without double-counting it as colder ambient air.
  */
 public class WaterTempModifier extends TempModifier
 {
@@ -45,6 +50,34 @@ public class WaterTempModifier extends TempModifier
     public double getTargetTemperature(LivingEntity entity)
     {
         return WaterExposureSettings.DEFAULT_WATER_TEMP_DELTA;
+    }
+
+    /**
+     * Normalized 0..1 wetness signal for physiology.
+     *
+     * Rain saturation is normalized against MAX_RAIN_SOAK. While immersed,
+     * the configured water-temperature target is used so a fully-soaked player
+     * still reports approximately 1.0 even if those configured magnitudes
+     * differ slightly.
+     */
+    public double getWetnessFraction(LivingEntity entity)
+    {
+        double scale = entity.isInWater()
+                ? Math.abs(getTargetTemperature(entity))
+                : WaterExposureSettings.MAX_RAIN_SOAK;
+
+        if (scale <= 1.0e-9)
+        {
+            return 0.0;
+        }
+
+        return Math.max(
+                0.0,
+                Math.min(
+                        1.0,
+                        Math.abs(getTemperature()) / scale
+                )
+        );
     }
 
     @Override
@@ -119,8 +152,24 @@ public class WaterTempModifier extends TempModifier
 
         setTemperature(newTemperature);
 
-        double finalTemperature = newTemperature;
-        return temp -> temp + finalTemperature;
+        /*
+         * M7.12g semantic split:
+         *
+         * - immersion still changes the effective environment for now because
+         *   the player is physically surrounded by water whose temperature
+         *   matters;
+         * - rain only updates wetness state. Its physiological cooling belongs
+         *   in the body/skin regulator instead of being counted as colder air.
+         *
+         * This removes the rain double-count discovered during M7.12f testing
+         * while preserving the existing soak/dry lifecycle and a clean M8 hook.
+         */
+        double directEnvironmentDelta =
+                inWater
+                        ? newTemperature
+                        : 0.0;
+
+        return temp -> temp + directEnvironmentDelta;
     }
 
     @Override
