@@ -6,18 +6,11 @@ import com.momosoftworks.coldsweat.api.temperature.modifier.TempModifier;
 import com.momosoftworks.coldsweat.api.temperature.modifier.WaterTempModifier;
 import com.momosoftworks.coldsweat.api.util.Temperature;
 import com.momosoftworks.coldsweat.common.capability.handler.EntityTempManager;
-import com.momosoftworks.coldsweat.config.TemperatureDamageSettings;
-import com.momosoftworks.coldsweat.core.init.ModEffects;
-import com.momosoftworks.coldsweat.util.registries.ModDamageSources;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
+import com.momosoftworks.coldsweat.fabric.temperature.ThermalEnvironment;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.minecraft.core.Registry;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.world.Difficulty;
-import net.minecraft.world.damagesource.DamageSource;
-import net.minecraft.world.damagesource.DamageType;
-import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 
@@ -26,16 +19,30 @@ import java.util.EnumMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Server-side runtime owner for environmental TempModifiers.
+ *
+ * M7.12 keeps Cold Sweat's modifier identity, but the live WORLD calculation
+ * is now evaluated in explicit thermal stages:
+ *
+ * ambient climate -> local/radiant sources -> direct exposure -> WORLD
+ *
+ * This first split is deliberately behavior-preserving. Existing shade/
+ * overcast remains in the ambient-climate stage because it was already part
+ * of the pre-local-source chain. True shelter/wind/greenhouse semantics are
+ * layered later without forcing block/entity scans to run twice.
  */
 public final class TemperatureModifierRuntime
 {
-    private static final Map<LivingEntity, List<TempModifier>> WORLD_MODIFIERS =
+    private static final Map<LivingEntity, WorldModifierStages> WORLD_MODIFIERS =
             new IdentityHashMap<>();
 
     private static final Map<LivingEntity, List<TempModifier>> BASE_MODIFIERS =
+            new IdentityHashMap<>();
+
+    private static final Map<LivingEntity, ThermalEnvironment> THERMAL_ENVIRONMENTS =
             new IdentityHashMap<>();
 
     private static boolean initialized;
@@ -73,53 +80,114 @@ public final class TemperatureModifierRuntime
     }
 
     /**
-     * Current standalone player WORLD chain, preserving upstream ordering and
-     * player tick rates for the modifiers already ported:
+     * Standalone player WORLD chain split into explicit semantic stages.
      *
-     * Biome -> Shade -> Elevation -> Cave Biomes -> Blocks -> Entities
+     * The ordering remains equivalent to the previously-live chain:
+     *
+     * Biome -> Shade -> Elevation -> Cave Biomes
+     *       -> Blocks -> Entities
+     *       -> dynamic Water exposure
+     *
+     * No modifier is evaluated more than once per WORLD update.
      */
     public static void installDefaultWorldModifiers(LivingEntity entity)
     {
         removeEntity(entity);
 
-        List<TempModifier> modifiers = new ArrayList<>();
+        WorldModifierStages stages = new WorldModifierStages();
 
-        modifiers.add(
+        addWorldModifier(
+                entity,
+                stages.ambient,
                 createRegistered("biomes").tickRate(20)
         );
-        modifiers.add(
+        addWorldModifier(
+                entity,
+                stages.ambient,
                 createRegistered("shade").tickRate(10)
         );
-        modifiers.add(
+        addWorldModifier(
+                entity,
+                stages.ambient,
                 createRegistered("elevation").tickRate(20)
         );
-        modifiers.add(
+        addWorldModifier(
+                entity,
+                stages.ambient,
                 createRegistered("cave_biomes").tickRate(20)
         );
-        modifiers.add(
+
+        addWorldModifier(
+                entity,
+                stages.localSources,
                 createRegistered("blocks").tickRate(5)
         );
-        modifiers.add(
+        addWorldModifier(
+                entity,
+                stages.localSources,
                 createRegistered("entities").tickRate(10)
         );
 
-        for (TempModifier modifier : modifiers)
-        {
-            modifier.onAdded(entity, Temperature.Trait.WORLD);
-        }
-
-        WORLD_MODIFIERS.put(entity, modifiers);
+        WORLD_MODIFIERS.put(entity, stages);
         BASE_MODIFIERS.put(entity, new ArrayList<>());
     }
 
+    /**
+     * Compatibility/debug view of every WORLD modifier in live application
+     * order. The returned list is detached so callers cannot mutate stage
+     * ownership accidentally.
+     */
     public static List<TempModifier> getWorldModifiers(LivingEntity entity)
     {
-        return WORLD_MODIFIERS.getOrDefault(entity, List.of());
+        WorldModifierStages stages = WORLD_MODIFIERS.get(entity);
+        if (stages == null)
+        {
+            return List.of();
+        }
+
+        ArrayList<TempModifier> modifiers = new ArrayList<>(
+                stages.ambient.size()
+                        + stages.localSources.size()
+                        + stages.exposure.size()
+        );
+        modifiers.addAll(stages.ambient);
+        modifiers.addAll(stages.localSources);
+        modifiers.addAll(stages.exposure);
+        return List.copyOf(modifiers);
     }
 
     public static List<TempModifier> getBaseModifiers(LivingEntity entity)
     {
         return BASE_MODIFIERS.getOrDefault(entity, List.of());
+    }
+
+    /**
+     * Latest server-side breakdown of the entity's thermal environment.
+     *
+     * WORLD remains the canonical synchronized effective/apparent value. This
+     * breakdown exists so later M7/M8 systems can reason about ambient climate
+     * and local load separately without re-running expensive scans.
+     */
+    public static Optional<ThermalEnvironment> getThermalEnvironment(
+            LivingEntity entity
+    )
+    {
+        return Optional.ofNullable(
+                THERMAL_ENVIRONMENTS.get(entity)
+        );
+    }
+
+    private static void addWorldModifier(
+            LivingEntity entity,
+            List<TempModifier> stage,
+            TempModifier modifier
+    )
+    {
+        modifier.onAdded(
+                entity,
+                Temperature.Trait.WORLD
+        );
+        stage.add(modifier);
     }
 
     private static TempModifier createRegistered(String path)
@@ -154,12 +222,8 @@ public final class TemperatureModifierRuntime
     }
 
     /**
-     * Upstream adds WaterTempModifier dynamically for players rather than as a
-     * permanent default modifier:
-     * - water is checked every 5 ticks
-     * - rain is sampled every 40 ticks
-     * - duplicate WaterTempModifiers are not added
-     * - the modifier later expires naturally after drying back to zero
+     * Water/rain exposure remains dynamic and now belongs explicitly to the
+     * exposure stage rather than being an untyped tail entry in WORLD.
      */
     private static void updateWaterExposure(LivingEntity entity)
     {
@@ -182,11 +246,11 @@ public final class TemperatureModifierRuntime
             return;
         }
 
-        List<TempModifier> modifiers =
+        WorldModifierStages stages =
                 WORLD_MODIFIERS.get(entity);
 
-        if (modifiers == null
-                || modifiers.stream()
+        if (stages == null
+                || stages.exposure.stream()
                         .anyMatch(WaterTempModifier.class::isInstance))
         {
             return;
@@ -195,17 +259,16 @@ public final class TemperatureModifierRuntime
         TempModifier water =
                 createRegistered("water").tickRate(5);
 
-        water.onAdded(
+        addWorldModifier(
                 entity,
-                Temperature.Trait.WORLD
+                stages.exposure,
+                water
         );
-        modifiers.add(water);
     }
 
     /**
-     * Upstream adds FreezingTempModifier dynamically to BASE while vanilla's
-     * freezing state is active. The modifier reads vanilla frozen ticks and
-     * expires itself once the entity thaws.
+     * Vanilla freezing remains a BASE modifier. It is not folded into the
+     * environment split because BASE represents direct body-state pressure.
      */
     private static void updateFreezingExposure(LivingEntity entity)
     {
@@ -262,25 +325,53 @@ public final class TemperatureModifierRuntime
 
     private static void tickWorldTemperature(LivingEntity entity)
     {
-        List<TempModifier> modifiers = WORLD_MODIFIERS.get(entity);
-        if (modifiers == null)
+        WorldModifierStages stages = WORLD_MODIFIERS.get(entity);
+        if (stages == null)
         {
             return;
         }
 
-        double modifiedWorldTemperature = Temperature.apply(
+        /*
+         * Evaluate each modifier exactly once through the existing cached
+         * TempModifier machinery. This gives us semantic stage boundaries
+         * without duplicating biome/cave/block/entity scans.
+         */
+        double ambientClimate = Temperature.apply(
                 0.0,
                 entity,
                 Temperature.Trait.WORLD,
-                modifiers
+                stages.ambient
+        );
+
+        double afterLocalSources = Temperature.apply(
+                ambientClimate,
+                entity,
+                Temperature.Trait.WORLD,
+                stages.localSources
+        );
+
+        double modifiedEffectiveTemperature = Temperature.apply(
+                afterLocalSources,
+                entity,
+                Temperature.Trait.WORLD,
+                stages.exposure
         );
 
         double worldTemperature =
                 EntityTempManager.resolveAttributeValue(
                         entity,
                         Temperature.Trait.WORLD,
-                        modifiedWorldTemperature
+                        modifiedEffectiveTemperature
                 );
+
+        THERMAL_ENVIRONMENTS.put(
+                entity,
+                ThermalEnvironment.fromStages(
+                        ambientClimate,
+                        afterLocalSources,
+                        worldTemperature
+                )
+        );
 
         tickCoreTemperature(
                 entity,
@@ -290,7 +381,17 @@ public final class TemperatureModifierRuntime
         tickModifierLifecycle(
                 entity,
                 Temperature.Trait.WORLD,
-                modifiers
+                stages.ambient
+        );
+        tickModifierLifecycle(
+                entity,
+                Temperature.Trait.WORLD,
+                stages.localSources
+        );
+        tickModifierLifecycle(
+                entity,
+                Temperature.Trait.WORLD,
+                stages.exposure
         );
 
         List<TempModifier> baseModifiers =
@@ -309,9 +410,9 @@ public final class TemperatureModifierRuntime
     /**
      * Live player body-temperature runtime.
      *
-     * Environmental WORLD temperature is now meaningful enough to drive CORE.
-     * Environmental state drives CORE/BASE here; critical-temperature
-     * damage is applied after the updated traits are written.
+     * M7.12b only changes environment ownership. The existing CORE behavior is
+     * deliberately preserved for this slice so the high-inertia homeostatic
+     * rewrite can be validated independently in a later slice.
      */
     private static void tickCoreTemperature(
             LivingEntity entity,
@@ -528,186 +629,12 @@ public final class TemperatureModifierRuntime
         );
 
         Temperature.setAll(entity, values);
-        tickTemperatureDamage(entity);
-        TemperatureEffectRuntime.applyServerEffects(entity);
-    }
-
-    /**
-     * Upstream critical-temperature damage:
-     * - no damage in peaceful, creative, spectator, or while Grace is active
-     * - body temperature must reach +/-100
-     * - fire/ice resistance effects can nullify their matching side
-     * - heat/cold resistance scales damage toward zero
-     * - faster outward temperature movement shortens the hurt interval
-     */
-    private static void tickTemperatureDamage(LivingEntity entity)
-    {
-        if (entity.level().getDifficulty() == Difficulty.PEACEFUL
-                || entity.isSpectator()
-                || (entity instanceof Player player
-                    && player.isCreative()))
-        {
-            return;
-        }
-
-        int hurtInterval =
-                TemperatureDamageSettings.HURT_INTERVAL;
-
-        if (hurtInterval < 1
-                || entity.hasEffect(ModEffects.GRACE))
-        {
-            return;
-        }
-
-        double bodyTemperature =
-                Temperature.get(
-                        entity,
-                        Temperature.Trait.BODY
-                );
-
-        double rate =
-                Temperature.get(
-                        entity,
-                        Temperature.Trait.RATE
-                );
-
-        double heatResistance =
-                Temperature.get(
-                        entity,
-                        Temperature.Trait.HEAT_RESISTANCE
-                );
-
-        double coldResistance =
-                Temperature.get(
-                        entity,
-                        Temperature.Trait.COLD_RESISTANCE
-                );
 
         /*
-         * Upstream only accelerates damage while RATE is pushing farther into
-         * the same hot/cold direction as BODY.
+         * Critical damage moved to TemperatureDamageRuntime in M7.11.
+         * Keep this runtime focused on environment/core/effect state.
          */
-        double rateFactor =
-                TemperatureRuntime.sign(bodyTemperature)
-                        == TemperatureRuntime.sign(rate)
-                        ? Math.abs(rate)
-                        : 0.0;
-
-        int rateInterval =
-                (int) blend(
-                        1.0,
-                        4.0,
-                        rateFactor,
-                        0.0,
-                        0.7
-                );
-
-        int actualInterval =
-                Math.max(
-                        1,
-                        hurtInterval / Math.max(1, rateInterval)
-                );
-
-        if (entity.tickCount % actualInterval != 0)
-        {
-            return;
-        }
-
-        Registry<DamageType> damageTypes =
-                entity.level()
-                        .registryAccess()
-                        .lookupOrThrow(
-                                Registries.DAMAGE_TYPE
-                        );
-
-        double configuredDamage =
-                TemperatureDamageSettings.TEMPERATURE_DAMAGE;
-
-        if (bodyTemperature >= 100.0
-                && !(entity.hasEffect(MobEffects.FIRE_RESISTANCE)
-                     && TemperatureDamageSettings.FIRE_RESISTANCE_ENABLED))
-        {
-            double damage =
-                    blend(
-                            configuredDamage,
-                            0.0,
-                            heatResistance,
-                            0.0,
-                            1.0
-                    );
-
-            DamageSource source =
-                    new DamageSource(
-                            damageTypes.getOrThrow(
-                                    ModDamageSources.HOT
-                            )
-                    );
-
-            entity.hurt(
-                    source,
-                    (float) damage
-            );
-        }
-        else if (bodyTemperature <= -100.0
-                && !(entity.hasEffect(ModEffects.ICE_RESISTANCE)
-                     && TemperatureDamageSettings.ICE_RESISTANCE_ENABLED))
-        {
-            double damage =
-                    blend(
-                            configuredDamage,
-                            0.0,
-                            coldResistance,
-                            0.0,
-                            1.0
-                    );
-
-            DamageSource source =
-                    new DamageSource(
-                            damageTypes.getOrThrow(
-                                    ModDamageSources.COLD
-                            )
-                    );
-
-            entity.hurt(
-                    source,
-                    (float) damage
-            );
-        }
-    }
-
-    private static double blend(
-            double from,
-            double to,
-            double factor,
-            double rangeMin,
-            double rangeMax
-    )
-    {
-        if (rangeMin > rangeMax)
-        {
-            return blend(
-                    to,
-                    from,
-                    factor,
-                    rangeMax,
-                    rangeMin
-            );
-        }
-
-        if (factor <= rangeMin)
-        {
-            return from;
-        }
-
-        if (factor >= rangeMax)
-        {
-            return to;
-        }
-
-        return from
-                + (to - from)
-                * ((factor - rangeMin)
-                   / (rangeMax - rangeMin));
+        TemperatureEffectRuntime.applyServerEffects(entity);
     }
 
     private static void tickModifierLifecycle(
@@ -746,19 +673,25 @@ public final class TemperatureModifierRuntime
     private static void removeEntity(LivingEntity entity)
     {
         TemperatureEffectRuntime.clear(entity);
+        THERMAL_ENVIRONMENTS.remove(entity);
 
-        List<TempModifier> worldRemoved =
+        WorldModifierStages worldRemoved =
                 WORLD_MODIFIERS.remove(entity);
 
         if (worldRemoved != null)
         {
-            for (TempModifier modifier : worldRemoved)
-            {
-                modifier.onRemoved(
-                        entity,
-                        Temperature.Trait.WORLD
-                );
-            }
+            removeWorldStage(
+                    entity,
+                    worldRemoved.ambient
+            );
+            removeWorldStage(
+                    entity,
+                    worldRemoved.localSources
+            );
+            removeWorldStage(
+                    entity,
+                    worldRemoved.exposure
+            );
         }
 
         List<TempModifier> baseRemoved =
@@ -774,6 +707,36 @@ public final class TemperatureModifierRuntime
                 );
             }
         }
+    }
+
+    private static void removeWorldStage(
+            LivingEntity entity,
+            List<TempModifier> modifiers
+    )
+    {
+        for (TempModifier modifier : modifiers)
+        {
+            modifier.onRemoved(
+                    entity,
+                    Temperature.Trait.WORLD
+            );
+        }
+    }
+
+    /**
+     * Stable per-entity modifier ownership. Stage lists are allocated only when
+     * the entity is installed, not during normal temperature ticks.
+     */
+    private static final class WorldModifierStages
+    {
+        private final List<TempModifier> ambient =
+                new ArrayList<>();
+
+        private final List<TempModifier> localSources =
+                new ArrayList<>();
+
+        private final List<TempModifier> exposure =
+                new ArrayList<>();
     }
 
     private TemperatureModifierRuntime()
