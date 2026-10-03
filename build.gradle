@@ -86,6 +86,7 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/util/world/WorldTemperatureUtil.java'
             include 'com/momosoftworks/coldsweat/config/WorldTemperatureSettings.java'
             include 'com/momosoftworks/coldsweat/common/capability/temperature/TemperatureModifierRuntime.java'
+            include 'com/momosoftworks/coldsweat/common/capability/temperature/TemperatureDamageRuntime.java'
             include 'com/momosoftworks/coldsweat/api/event/common/temperautre/TemperatureChangedEvent.java'
 
             // M5.1: insulation value model and adaptive armor state foundation.
@@ -149,6 +150,9 @@ sourceSets {
             include 'assets/cold_sweat/lang/**'
             include 'data/c/tags/worldgen/biome/**'
             include 'data/cold_sweat/damage_type/**'
+            include 'data/minecraft/tags/damage_type/no_knockback.json'
+            include 'data/minecraft/tags/damage_type/no_impact.json'
+            include 'data/minecraft/tags/damage_type/bypasses_cooldown.json'
 
             // M6.7: thermal-machine blockstates, models, and textures.
             include 'assets/cold_sweat/blockstates/hearth_bottom.json'
@@ -176,7 +180,7 @@ sourceSets {
             include 'assets/cold_sweat/items/slush_bucket.json'
             include 'assets/cold_sweat/textures/item/bucket_slush.png'
             include 'assets/cold_sweat/textures/gui/overlay/body_temp_gauge.png'
-            include 'assets/cold_sweat/textures/gui/overlay/world_temp_gauge.png'
+            include 'assets/cold_sweat/textures/gui/overlay/vague_temp_gauge.png'
             include 'data/cold_sweat/recipe/hearth.json'
             include 'data/cold_sweat/recipe/boiler.json'
             include 'data/cold_sweat/recipe/icebox.json'
