@@ -15,8 +15,10 @@ import net.minecraft.world.entity.player.Player;
  * Server-side temperature gameplay effects that can be expressed cleanly with
  * vanilla 26.2 attributes.
  *
- * Client-only effects (blur, fog, sway, vignette, shiver, frozen-heart HUD)
- * intentionally wait for M7.
+ * M7.12i keeps the existing cold-effect balance, but derives its staging from
+ * the physiological Celsius mapping shared by the high-inertia core model.
+ * Client-only presentation can now consume the same thresholds without
+ * inventing a second definition of "dangerously cold".
  */
 public final class TemperatureEffectRuntime
 {
@@ -65,9 +67,9 @@ public final class TemperatureEffectRuntime
     }
 
     /**
-     * Equivalent to the default player's Cold Sweat effect range:
-     * - factor 0 at BODY -50
-     * - factor 1 at BODY -100
+     * Existing balance preserved in physiological terms:
+     * - factor 0 at ~35 C core
+     * - factor 1 at ~33 C core
      * - cold resistance blends the effect back toward zero
      * - Ice Resistance fully nullifies cold effects
      */
@@ -91,24 +93,15 @@ public final class TemperatureEffectRuntime
                         Temperature.Trait.BODY
                 );
 
-        double start =
-                TemperatureEffectSettings.COLD_EFFECT_START;
+        double rawFactor =
+                TemperatureRuntime.coldImpairmentFactor(
+                        bodyTemperature
+                );
 
-        double maximum =
-                TemperatureEffectSettings.COLD_EFFECT_MAX;
-
-        if (bodyTemperature >= start)
+        if (rawFactor <= 0.0)
         {
             return 0.0;
         }
-
-        double rawFactor =
-                clamp(
-                        (start - bodyTemperature)
-                                / (start - maximum),
-                        0.0,
-                        1.0
-                );
 
         double resistance =
                 clamp(
@@ -123,13 +116,6 @@ public final class TemperatureEffectRuntime
         return rawFactor * (1.0 - resistance);
     }
 
-    /**
-     * Server-side equivalent of upstream FreezeHealingEffect.
-     *
-     * At full cold effect, the top configured percentage of max health cannot
-     * be restored. Existing health is never forcibly removed by this hook; it
-     * only caps incoming healing.
-     */
     public static float limitHealing(
             LivingEntity entity,
             float healAmount
@@ -181,13 +167,6 @@ public final class TemperatureEffectRuntime
         );
     }
 
-    /**
-     * Server-side equivalent of upstream FreezeKnockbackEffect.
-     *
-     * Upstream keys the penalty from the attacker that most recently hurt the
-     * target, so the mixin passes that attacker here rather than evaluating the
-     * knocked-back target.
-     */
     public static double reduceOutgoingKnockback(
             LivingEntity attacker,
             double strength
@@ -247,10 +226,6 @@ public final class TemperatureEffectRuntime
                 TemperatureEffectSettings.COLD_MOVEMENT_SLOWDOWN
                         * effectFactor;
 
-        /*
-         * Preserve upstream's extra movement penalty while sprinting in the
-         * air, while expressing the final result as a 26.2 transient attribute.
-         */
         if (player.isSprinting()
                 && !player.onGround())
         {

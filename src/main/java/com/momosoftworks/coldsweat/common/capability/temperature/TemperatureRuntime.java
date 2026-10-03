@@ -216,6 +216,48 @@ public final class TemperatureRuntime
         return 50.0 + (celsius - 41.0) / 0.04;
     }
 
+
+    /**
+     * Canonical cold impairment progression used by gameplay symptoms.
+     *
+     * 35 C -> symptoms begin
+     * 33 C -> full cold impairment / critical cold threshold neighborhood
+     *
+     * Using Celsius here keeps symptom staging tied to the physiological model
+     * rather than to arbitrary normalized BODY numbers.
+     */
+    public static double coldImpairmentFactor(double bodyStress)
+    {
+        double coreC = bodyStressToCelsius(bodyStress);
+        return clamp(
+                (35.0 - coreC) / 2.0,
+                0.0,
+                1.0
+        );
+    }
+
+    /**
+     * Shared client/server visual symptom stage.
+     *
+     * Stage 0: no strong symptom presentation
+     * Stage 1: dangerous cold/heat
+     * Stage 2: near-critical cold/heat
+     */
+    public static int bodyVisualEffectLevel(double coreCelsius)
+    {
+        if (coreCelsius <= 33.5 || coreCelsius >= 41.0)
+        {
+            return 2;
+        }
+
+        if (coreCelsius <= 35.0 || coreCelsius >= 39.5)
+        {
+            return 1;
+        }
+
+        return 0;
+    }
+
     /**
      * Cold Sweat's dampening blend for one side of the temperature spectrum.
      */
