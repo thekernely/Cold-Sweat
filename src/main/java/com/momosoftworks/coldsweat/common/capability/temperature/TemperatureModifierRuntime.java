@@ -36,6 +36,13 @@ import java.util.Optional;
  */
 public final class TemperatureModifierRuntime
 {
+    /*
+     * Local radiant/source load should respond quickly enough to feel live,
+     * but not teleport the apparent environment several degrees in one tick.
+     * 0.20 reaches ~99% of a new source load in about one second at 20 TPS.
+     */
+    private static final double LOCAL_SOURCE_RESPONSE_PER_TICK = 0.20;
+
     private static final Map<LivingEntity, WorldModifierStages> WORLD_MODIFIERS =
             new IdentityHashMap<>();
 
@@ -343,12 +350,39 @@ public final class TemperatureModifierRuntime
                 stages.ambient
         );
 
-        double afterLocalSources = Temperature.apply(
+        double rawAfterLocalSources = Temperature.apply(
                 ambientClimate,
                 entity,
                 Temperature.Trait.WORLD,
                 stages.localSources
         );
+
+        /*
+         * Keep local/radiant load distinct from ambient climate and give that
+         * load a small amount of thermal response time. This prevents a newly
+         * exposed lava/fire source from making the player-facing environment
+         * jump instantly while remaining responsive on survival timescales.
+         *
+         * This is O(1) and reuses the previous environment snapshot - no extra
+         * source scan is introduced.
+         */
+        double rawLocalSourceDelta =
+                rawAfterLocalSources - ambientClimate;
+
+        ThermalEnvironment previous =
+                THERMAL_ENVIRONMENTS.get(entity);
+
+        double localSourceDelta =
+                previous == null
+                        ? rawLocalSourceDelta
+                        : approach(
+                                previous.localSourceDelta(),
+                                rawLocalSourceDelta,
+                                LOCAL_SOURCE_RESPONSE_PER_TICK
+                        );
+
+        double afterLocalSources =
+                ambientClimate + localSourceDelta;
 
         double modifiedEffectiveTemperature = Temperature.apply(
                 afterLocalSources,
@@ -635,6 +669,31 @@ public final class TemperatureModifierRuntime
          * Keep this runtime focused on environment/core/effect state.
          */
         TemperatureEffectRuntime.applyServerEffects(entity);
+    }
+
+    private static double approach(
+            double current,
+            double target,
+            double response
+    )
+    {
+        if (Double.compare(current, target) == 0)
+        {
+            return target;
+        }
+
+        double clampedResponse =
+                Math.max(
+                        0.0,
+                        Math.min(1.0, response)
+                );
+
+        double next =
+                current + (target - current) * clampedResponse;
+
+        return Math.abs(target - next) < 1.0e-9
+                ? target
+                : next;
     }
 
     private static void tickModifierLifecycle(

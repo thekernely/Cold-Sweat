@@ -17,17 +17,29 @@ import java.util.function.Function;
 /**
  * Fabric block-temperature scanner.
  *
- * This restores the core upstream behavior needed by registered BlockTemps:
- * nearby source scanning, distance fading, per-source effect caps, temperature
- * caps, and logarithmic diminishing returns.
+ * M7.12 keeps the existing correctness-first cube scan but improves the
+ * physical behavior of sources without adding a second scan:
+ * - distance fading uses a gentler quadratic falloff
+ * - only actual registered temperature-source candidates receive a short
+ *   obstruction ray
+ * - obstruction checks stop after a small number of blockers
  *
- * Upstream's ray-based obstruction attenuation, group caps, chunk/state caches,
- * and advancement hooks are restored in later slices.
+ * Broader chunk/state caching still belongs to the performance work that
+ * naturally follows once the corrected thermal model is stable.
  */
 public class BlockTempModifier extends TempModifier
 {
     private static final double LOG_FACTOR = 0.52;
     private static final int DEFAULT_RANGE = 7;
+
+    /*
+     * A source at seven blocks never needs an excessively fine ray. Two
+     * samples per block is sufficient to identify ordinary Minecraft walls,
+     * while the blocker cap prevents pathological rays from doing pointless
+     * work through thick structures.
+     */
+    private static final double OBSTRUCTION_STEPS_PER_BLOCK = 2.0;
+    private static final int MAX_OBSTRUCTION_BLOCKS = 4;
 
     private final int rangeOverride;
 
@@ -145,6 +157,22 @@ public class BlockTempModifier extends TempModifier
                             );
                         }
 
+                        /*
+                         * The source has already passed all cheap validity and
+                         * range checks. Only now pay for an obstruction ray.
+                         */
+                        sourceTemperature *= obstructionFactor(
+                                level,
+                                entityCenter,
+                                blockCenter,
+                                cursor
+                        );
+
+                        if (Math.abs(sourceTemperature) < 1.0e-12)
+                        {
+                            continue;
+                        }
+
                         BlockEffectAccumulator accumulator =
                                 totals.computeIfAbsent(
                                         blockTemp,
@@ -220,6 +248,12 @@ public class BlockTempModifier extends TempModifier
         };
     }
 
+    /**
+     * Quadratic falloff preserves full strength at the source while making
+     * medium-distance radiant influence noticeably less dominant than the old
+     * linear interpolation. The contribution still reaches exactly zero at
+     * the configured source range.
+     */
     private static double fadeFactor(double distance, double range)
     {
         if (range <= 0.0)
@@ -233,9 +267,87 @@ public class BlockTempModifier extends TempModifier
         }
 
         double progress =
-                (distance - 0.5) / Math.max(0.0001, range - 0.5);
+                (distance - 0.5)
+                        / Math.max(0.0001, range - 0.5);
 
-        return 1.0 - clamp(progress, 0.0, 1.0);
+        double remaining =
+                1.0 - clamp(progress, 0.0, 1.0);
+
+        return remaining * remaining;
+    }
+
+    /**
+     * Approximate radiant obstruction between the entity and one real thermal
+     * source. One ordinary solid wall halves the contribution, two reduce it
+     * to one third, and so on. We cap blocker counting because after several
+     * walls the remaining contribution is already small and extra ray work
+     * would not improve gameplay meaningfully.
+     */
+    private static double obstructionFactor(
+            Level level,
+            Vec3 start,
+            Vec3 end,
+            BlockPos sourcePos
+    )
+    {
+        double distance = start.distanceTo(end);
+        if (distance <= 0.5)
+        {
+            return 1.0;
+        }
+
+        int steps = Math.max(
+                1,
+                (int) Math.ceil(
+                        distance * OBSTRUCTION_STEPS_PER_BLOCK
+                )
+        );
+
+        BlockPos.MutableBlockPos rayPos =
+                new BlockPos.MutableBlockPos();
+
+        long lastPos = Long.MIN_VALUE;
+        int blockers = 0;
+
+        for (int step = 1; step < steps; step++)
+        {
+            double progress = step / (double) steps;
+
+            double x = start.x + (end.x - start.x) * progress;
+            double y = start.y + (end.y - start.y) * progress;
+            double z = start.z + (end.z - start.z) * progress;
+
+            rayPos.set(
+                    (int) Math.floor(x),
+                    (int) Math.floor(y),
+                    (int) Math.floor(z)
+            );
+
+            if (rayPos.getX() == sourcePos.getX()
+                    && rayPos.getY() == sourcePos.getY()
+                    && rayPos.getZ() == sourcePos.getZ())
+            {
+                continue;
+            }
+
+            long packed = rayPos.asLong();
+            if (packed == lastPos)
+            {
+                continue;
+            }
+            lastPos = packed;
+
+            if (level.getBlockState(rayPos).isSolidRender())
+            {
+                blockers++;
+                if (blockers >= MAX_OBSTRUCTION_BLOCKS)
+                {
+                    break;
+                }
+            }
+        }
+
+        return 1.0 / (blockers + 1.0);
     }
 
     private static double clamp(
