@@ -330,8 +330,8 @@ public final class TemperatureHudRenderer
         if (bodyCelsius < 35.0)
         {
             return lerpColor(
-                    0xFF8FD0FF,
-                    0xFFDFF6FF,
+                    0xFF245A8C,
+                    0xFF163B63,
                     clamp01((35.0 - bodyCelsius) / 1.5)
             );
         }
@@ -339,8 +339,8 @@ public final class TemperatureHudRenderer
         if (bodyCelsius > 39.0)
         {
             return lerpColor(
-                    0xFFFFA45E,
-                    0xFFFFD0A3,
+                    0xFF8F431C,
+                    0xFF5F2A12,
                     clamp01((bodyCelsius - 39.0) / 1.5)
             );
         }
@@ -350,12 +350,12 @@ public final class TemperatureHudRenderer
 
     private static int getBodyTemperatureEffectLevel(double bodyCelsius)
     {
-        if (bodyCelsius <= 34.5 || bodyCelsius >= 40.0)
+        if (bodyCelsius <= 33.5 || bodyCelsius >= 41.0)
         {
             return 2;
         }
 
-        if (bodyCelsius <= 35.5 || bodyCelsius >= 39.0)
+        if (bodyCelsius <= 35.0 || bodyCelsius >= 39.5)
         {
             return 1;
         }
@@ -392,21 +392,21 @@ public final class TemperatureHudRenderer
             double environmentCelsius
     )
     {
-        if (environmentCelsius < 0.0)
+        if (environmentCelsius < -5.0)
         {
             return lerpColor(
-                    0xFF8FD0FF,
-                    0xFFDFF6FF,
-                    clamp01((0.0 - environmentCelsius) / 15.0)
+                    0xFF245A8C,
+                    0xFF163B63,
+                    clamp01((-5.0 - environmentCelsius) / 15.0)
             );
         }
 
-        if (environmentCelsius > 36.0)
+        if (environmentCelsius > 42.0)
         {
             return lerpColor(
-                    0xFFFFA45E,
-                    0xFFFFD0A3,
-                    clamp01((environmentCelsius - 36.0) / 14.0)
+                    0xFF8F431C,
+                    0xFF5F2A12,
+                    clamp01((environmentCelsius - 42.0) / 14.0)
             );
         }
 
@@ -417,12 +417,12 @@ public final class TemperatureHudRenderer
             double environmentCelsius
     )
     {
-        if (environmentCelsius <= -8.0 || environmentCelsius >= 44.0)
+        if (environmentCelsius <= -18.0 || environmentCelsius >= 52.0)
         {
             return 2;
         }
 
-        if (environmentCelsius <= 0.0 || environmentCelsius >= 36.0)
+        if (environmentCelsius <= -5.0 || environmentCelsius >= 42.0)
         {
             return 1;
         }
