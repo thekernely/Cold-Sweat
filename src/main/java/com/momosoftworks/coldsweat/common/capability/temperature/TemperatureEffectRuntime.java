@@ -15,10 +15,13 @@ import net.minecraft.world.entity.player.Player;
  * Server-side temperature gameplay effects that can be expressed cleanly with
  * vanilla 26.2 attributes.
  *
- * M7.12i keeps the existing cold-effect balance, but derives its staging from
- * the physiological Celsius mapping shared by the high-inertia core model.
- * Client-only presentation can now consume the same thresholds without
- * inventing a second definition of "dangerously cold".
+ * M7 cold model:
+ * - impairment begins at ~35 C and reaches full strength at ~33 C;
+ * - up to 50% of normal health becomes unavailable to food-based natural
+ *   regeneration as hypothermia deepens;
+ * - below 33 C food regeneration collapses quickly;
+ * - at and below 32 C food/saturation regeneration is fully disabled;
+ * - direct/magical healing is not treated as food regeneration.
  */
 public final class TemperatureEffectRuntime
 {
@@ -27,6 +30,18 @@ public final class TemperatureEffectRuntime
 
     private static final Identifier FREEZE_MINING =
             ColdSweatFabric.id("freeze_mining_speed");
+
+    /**
+     * Marks the Player whose FoodData.tick is currently executing.
+     *
+     * LivingEntity.heal is used by many mechanics, so the distinction is
+     * important: only vanilla food/saturation natural regeneration should be
+     * suppressed by the locked hypothermia model. Potions, regeneration
+     * effects, golden apples, commands, and other direct healing remain
+     * emergency resources.
+     */
+    private static final ThreadLocal<Player> NATURAL_REGEN_PLAYER =
+            new ThreadLocal<>();
 
     public static void applyServerEffects(LivingEntity entity)
     {
@@ -116,14 +131,18 @@ public final class TemperatureEffectRuntime
         return rawFactor * (1.0 - resistance);
     }
 
-    public static float limitHealing(
-            LivingEntity entity,
-            float healAmount
-    )
+    /**
+     * Continuous amount of health capacity currently frozen out of vanilla
+     * food-based natural regeneration.
+     *
+     * Deliberately not rounded: the HUD can show frost creeping across the
+     * boundary heart continuously instead of jumping in half-heart chunks.
+     */
+    public static double getFrozenHealth(LivingEntity entity)
     {
-        if (healAmount <= 0.0F)
+        if (!(entity instanceof Player))
         {
-            return healAmount;
+            return 0.0;
         }
 
         double effectFactor =
@@ -132,39 +151,135 @@ public final class TemperatureEffectRuntime
         if (effectFactor <= 0.0
                 || TemperatureEffectSettings.HEARTS_FREEZING_PERCENTAGE <= 0.0)
         {
+            return 0.0;
+        }
+
+        return entity.getMaxHealth()
+                * TemperatureEffectSettings.HEARTS_FREEZING_PERCENTAGE
+                * effectFactor;
+    }
+
+    /**
+     * Called by FoodDataMixin for the duration of vanilla FoodData.tick.
+     */
+    public static void beginNaturalRegeneration(Player player)
+    {
+        NATURAL_REGEN_PLAYER.set(player);
+    }
+
+    public static void endNaturalRegeneration(Player player)
+    {
+        if (NATURAL_REGEN_PLAYER.get() == player)
+        {
+            NATURAL_REGEN_PLAYER.remove();
+        }
+    }
+
+    /**
+     * Limits ONLY food/saturation natural regeneration.
+     *
+     * 33.0 C -> 100% of otherwise-allowed food regen
+     * 32.5 C -> 25%
+     * 32.2 C -> 4%
+     * 32.0 C -> 0%
+     *
+     * The squared curve intentionally collapses fast. Food can buy time in the
+     * early critical band, but it cannot replace external heat.
+     */
+    public static float limitHealing(
+            LivingEntity entity,
+            float healAmount
+    )
+    {
+        if (healAmount <= 0.0F
+                || !(entity instanceof Player player)
+                || NATURAL_REGEN_PLAYER.get() != player)
+        {
             return healAmount;
         }
 
-        float maxHealth = entity.getMaxHealth();
+        if (player.isCreative()
+                || player.isSpectator()
+                || player.hasEffect(ModEffects.ICE_RESISTANCE))
+        {
+            return healAmount;
+        }
 
-        float maxFrozenHealth =
+        double bodyStress =
+                Temperature.get(
+                        player,
+                        Temperature.Trait.BODY
+                );
+
+        double coreCelsius =
+                TemperatureRuntime.bodyStressToCelsius(
+                        bodyStress
+                );
+
+        double regenFactor =
+                coldNaturalRegenerationFactor(
+                        coreCelsius
+                );
+
+        if (regenFactor <= 0.0)
+        {
+            return 0.0F;
+        }
+
+        float scaledHeal =
                 (float) (
-                        maxHealth
-                        * TemperatureEffectSettings.HEARTS_FREEZING_PERCENTAGE
+                        healAmount
+                                * regenFactor
                 );
 
-        float frozenHealth =
-                Math.round(
-                        (float) (
-                                maxFrozenHealth
-                                * effectFactor
-                        )
-                );
+        double frozenHealth =
+                getFrozenHealth(player);
 
         float unfrozenHealth =
-                maxHealth - frozenHealth;
+                (float) (
+                        player.getMaxHealth()
+                                - frozenHealth
+                );
+
+        float remainingNaturalCapacity =
+                Math.max(
+                        0.0F,
+                        unfrozenHealth
+                                - player.getHealth()
+                );
 
         return Math.max(
                 0.0F,
                 Math.min(
-                        healAmount,
-                        Math.max(
-                                0.0F,
-                                unfrozenHealth
-                                - entity.getHealth()
-                        )
+                        scaledHeal,
+                        remainingNaturalCapacity
                 )
         );
+    }
+
+    public static double coldNaturalRegenerationFactor(
+            double coreCelsius
+    )
+    {
+        if (coreCelsius >= 33.0)
+        {
+            return 1.0;
+        }
+
+        if (coreCelsius <= 32.0)
+        {
+            return 0.0;
+        }
+
+        double normalized =
+                clamp(
+                        (coreCelsius - 32.0)
+                                / 1.0,
+                        0.0,
+                        1.0
+                );
+
+        return normalized * normalized;
     }
 
     public static double reduceOutgoingKnockback(

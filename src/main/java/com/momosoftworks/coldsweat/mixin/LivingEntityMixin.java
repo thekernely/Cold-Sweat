@@ -9,8 +9,9 @@ import org.spongepowered.asm.mixin.injection.ModifyVariable;
 /**
  * Small loader bridge for gameplay hooks Fabric does not expose directly.
  *
- * Keeping these hooks here lets the actual Cold Sweat temperature-effect math
- * remain loader-independent and testable.
+ * The healing hook is context-aware: TemperatureEffectRuntime only modifies
+ * healing while FoodData.tick is actively performing vanilla natural
+ * regeneration. Direct/magical healing passes through unchanged.
  */
 @Mixin(LivingEntity.class)
 public abstract class LivingEntityMixin
@@ -20,7 +21,7 @@ public abstract class LivingEntityMixin
             at = @At("HEAD"),
             argsOnly = true
     )
-    private float coldSweat$limitColdHealing(float healAmount)
+    private float coldSweat$limitColdNaturalHealing(float healAmount)
     {
         LivingEntity entity =
                 (LivingEntity) (Object) this;

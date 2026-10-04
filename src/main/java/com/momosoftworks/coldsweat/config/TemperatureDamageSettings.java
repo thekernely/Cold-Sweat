@@ -3,18 +3,53 @@ package com.momosoftworks.coldsweat.config;
 /**
  * Fabric-side defaults for critical-temperature damage.
  *
- * M7 deliberately changes the damage feel from upstream's larger, variable
- * interval hits to small fixed environmental pulses:
- * - half a heart (1 health point)
- * - every 10 ticks / 0.5 seconds
+ * Cold is locked for M7:
+ * - symptoms/frozen health begin before direct damage;
+ * - direct damage starts gently at 33 C;
+ * - damage accelerates exponentially as core temperature falls;
+ * - by ~31 C survival without rewarming is measured in minutes;
+ * - 30.x C rapidly becomes unsustainable.
  *
- * The old inline M4 damage path remains present for parity reference but is
- * disabled with HURT_INTERVAL = 0. TemperatureDamageRuntime owns live damage.
+ * Heat remains provisional until the dedicated hyperthermia balance pass.
  */
 public final class TemperatureDamageSettings
 {
-    public static final double TEMPERATURE_DAMAGE = 1.0;
-    public static final int DAMAGE_INTERVAL = 10;
+    public static final double COLD_DAMAGE_START_C = 33.0;
+
+    /**
+     * Health points lost per one-second pulse exactly at 33 C.
+     * 1 health point = half a heart.
+     */
+    public static final double COLD_BASE_DAMAGE = 0.020;
+
+    /**
+     * Per-degree multiplier below 33 C.
+     *
+     * 33 C -> 0.020
+     * 32 C -> 0.050
+     * 31 C -> 0.125
+     * 30 C -> 0.3125
+     */
+    public static final double COLD_DAMAGE_MULTIPLIER_PER_C = 2.5;
+
+    /**
+     * Safety cap for extremely deep hypothermia.
+     */
+    public static final double COLD_MAX_DAMAGE = 1.0;
+
+    /*
+     * Provisional heat values - deliberately left separate from the locked
+     * cold model so the next pass can change them without touching cold.
+     */
+    public static final double HOT_DAMAGE_START_C = 41.0;
+    public static final double HOT_MIN_DAMAGE = 0.125;
+    public static final double HOT_MAX_DAMAGE = 1.0;
+    public static final double HOT_DAMAGE_RAMP_C = 2.0;
+
+    /**
+     * Once per second at the normal 20 TPS simulation rate.
+     */
+    public static final int DAMAGE_INTERVAL = 20;
 
     /**
      * Legacy TemperatureModifierRuntime damage gate.

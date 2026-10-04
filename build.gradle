@@ -83,6 +83,8 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/config/TemperatureEffectSettings.java'
             include 'com/momosoftworks/coldsweat/common/capability/temperature/TemperatureEffectRuntime.java'
             include 'com/momosoftworks/coldsweat/mixin/LivingEntityMixin.java'
+            include 'com/momosoftworks/coldsweat/mixin/FoodDataMixin.java'
+            include 'com/momosoftworks/coldsweat/mixin/client/FrozenHeartHudMixin.java'
             include 'com/momosoftworks/coldsweat/util/world/WorldTemperatureUtil.java'
             include 'com/momosoftworks/coldsweat/config/WorldTemperatureSettings.java'
             include 'com/momosoftworks/coldsweat/common/capability/temperature/TemperatureModifierRuntime.java'
@@ -181,6 +183,7 @@ sourceSets {
             include 'assets/cold_sweat/textures/item/bucket_slush.png'
             include 'assets/cold_sweat/textures/gui/overlay/body_temp_gauge.png'
             include 'assets/cold_sweat/textures/gui/overlay/vague_temp_gauge.png'
+            include 'assets/cold_sweat/textures/gui/overlay/hearts_frozen.png'
             include 'data/cold_sweat/recipe/hearth.json'
             include 'data/cold_sweat/recipe/boiler.json'
             include 'data/cold_sweat/recipe/icebox.json'
@@ -222,3 +225,4 @@ java {
     }
     withSourcesJar()
 }
+

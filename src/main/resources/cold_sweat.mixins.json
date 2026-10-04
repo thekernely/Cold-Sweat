@@ -3,7 +3,11 @@
   "minVersion": "0.8",
   "package": "com.momosoftworks.coldsweat.mixin",
   "mixins": [
-    "LivingEntityMixin"
+    "LivingEntityMixin",
+    "FoodDataMixin"
+  ],
+  "client": [
+    "client.FrozenHeartHudMixin"
   ],
   "injectors": {
     "defaultRequire": 1
