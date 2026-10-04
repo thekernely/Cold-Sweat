@@ -26,7 +26,20 @@ public final class TemperatureHudRenderer
             );
 
     private static final int ICON_SIZE = 10;
+    private static final int MARKER_SIZE = 7;
+    private static final int HUD_TEXTURE_WIDTH = 26;
     private static final int ICON_TEXTURE_HEIGHT = 90;
+    private static final int ENVIRONMENT_MARKER_U = 11;
+    private static final int BODY_MARKER_U = 19;
+
+    /*
+     * Visual symmetry is anchored to the center face, not to equal-width
+     * outer boxes.  Both temperature strings keep the same visible gap from
+     * the face; their marker then hugs the outside edge of the string.
+     */
+    private static final int READOUT_TO_FACE_GAP = 3;
+    private static final int MARKER_GAP = 2;
+    private static final float READOUT_TEXT_SCALE = 0.54F;
 
     private TemperatureHudRenderer()
     {
@@ -57,7 +70,13 @@ public final class TemperatureHudRenderer
                 TemperatureHudData.capture(player);
 
         int centerX = graphics.guiWidth() / 2;
-        int iconY = graphics.guiHeight() - 57;
+
+        /*
+         * M7.13d: use the narrow strip between vanilla's selected-item name
+         * and the health/XP HUD.  Keeping the presentation to one horizontal
+         * row avoids both overlap and the visually awkward floating stack.
+         */
+        int iconY = graphics.guiHeight() - 49;
 
         renderNumericReadouts(
                 graphics,
@@ -67,6 +86,7 @@ public final class TemperatureHudRenderer
                 iconY
         );
     }
+
 
     /**
      * Mirrors Cold Sweat's upstream body severity semantics:
@@ -162,25 +182,28 @@ public final class TemperatureHudRenderer
         Font font = minecraft.font;
 
         /*
-         * M7.7: centered vertical instrument with reactive text styling.
+         * M7.13k: compact horizontal instrument with optical edge anchoring.
          *
-         *        37.0 C
-         *         [icon]
-         *        24.1 C
+         *      [sun] 24°  [face]  37.0° [heart]
          *
-         * Body temperature lives above the icon, surroundings below.
-         * Both values now react visually to temperature using the same
-         * blue/orange language as Cold Sweat's body icon.
+         * The temperature values themselves are anchored to equal gaps from
+         * the center face.  That is what the eye reads as symmetry; marker
+         * positions then follow the outside edges of their values.
          */
         String body = String.format(
                 Locale.ROOT,
-                "%.1f\u00B0C",
+                "%.1f\u00B0",
                 data.bodyCelsius()
         );
 
+        /*
+         * Environment is intentionally coarse on the HUD.  Whole degrees are
+         * easier to scan and avoid implying physiological-style precision for
+         * an external apparent-temperature estimate.
+         */
         String environment = String.format(
                 Locale.ROOT,
-                "%.1f\u00B0C",
+                "%.0f\u00B0",
                 data.environmentCelsius()
         );
 
@@ -202,21 +225,62 @@ public final class TemperatureHudRenderer
                 40.0F - iconStage * 10.0F,
                 ICON_SIZE,
                 ICON_SIZE,
-                ICON_SIZE,
+                HUD_TEXTURE_WIDTH,
                 ICON_TEXTURE_HEIGHT
         );
 
         /*
-         * Environment is the primary readout: larger and above the icon.
-         * Internal body temperature is secondary: smaller and below.
+         * Anchor the center-facing edges of both values to the face:
+         *
+         *   marker <- value | gap | face | gap | value -> marker
+         *
+         * This is optically symmetric even though "29°" and "37.0°" have
+         * different widths.
          */
-        drawCenteredStyledText(
+        int faceLeft = centerX - ICON_SIZE / 2;
+        int faceRight = faceLeft + ICON_SIZE;
+
+        int environmentTextRight =
+                faceLeft - READOUT_TO_FACE_GAP;
+        int bodyTextLeft =
+                faceRight + READOUT_TO_FACE_GAP;
+
+        int environmentRenderedWidth =
+                Math.round(font.width(environment) * READOUT_TEXT_SCALE);
+        int bodyRenderedWidth =
+                Math.round(font.width(body) * READOUT_TEXT_SCALE);
+
+        int environmentMarkerX =
+                environmentTextRight
+                        - environmentRenderedWidth
+                        - MARKER_GAP
+                        - MARKER_SIZE;
+
+        int bodyMarkerX =
+                bodyTextLeft
+                        + bodyRenderedWidth
+                        + MARKER_GAP;
+
+        graphics.blit(
+                RenderPipelines.GUI_TEXTURED,
+                BODY_GAUGE_TEXTURE,
+                environmentMarkerX,
+                iconY + 1,
+                ENVIRONMENT_MARKER_U,
+                0.0F,
+                MARKER_SIZE,
+                MARKER_SIZE,
+                HUD_TEXTURE_WIDTH,
+                ICON_TEXTURE_HEIGHT
+        );
+
+        drawRightAlignedStyledText(
                 graphics,
                 font,
                 environment,
-                centerX,
-                iconY - 11,
-                0.82F,
+                environmentTextRight,
+                iconY,
+                READOUT_TEXT_SCALE,
                 getEnvironmentTemperatureColor(
                         data.environmentCelsius()
                 ),
@@ -228,17 +292,139 @@ public final class TemperatureHudRenderer
                 )
         );
 
-        drawCenteredStyledText(
+        drawLeftAlignedStyledText(
                 graphics,
                 font,
                 body,
-                centerX,
-                iconY + ICON_SIZE + 3,
-                0.68F,
+                bodyTextLeft,
+                iconY,
+                READOUT_TEXT_SCALE,
                 getBodyTemperatureColor(data.bodyCelsius()),
                 getBodyTemperatureAccentColor(data.bodyCelsius()),
                 getBodyTemperatureEffectLevel(data.bodyCelsius())
         );
+
+        graphics.blit(
+                RenderPipelines.GUI_TEXTURED,
+                BODY_GAUGE_TEXTURE,
+                bodyMarkerX,
+                iconY + 1,
+                BODY_MARKER_U,
+                0.0F,
+                MARKER_SIZE,
+                MARKER_SIZE,
+                HUD_TEXTURE_WIDTH,
+                ICON_TEXTURE_HEIGHT
+        );
+    }
+
+    private static void drawRightAlignedStyledText(
+            GuiGraphicsExtractor graphics,
+            Font font,
+            String text,
+            int rightX,
+            int y,
+            float scale,
+            int baseColor,
+            int accentColor,
+            int effectLevel
+    )
+    {
+        drawAlignedStyledText(
+                graphics,
+                font,
+                text,
+                rightX,
+                y,
+                scale,
+                baseColor,
+                accentColor,
+                effectLevel,
+                true
+        );
+    }
+
+    private static void drawLeftAlignedStyledText(
+            GuiGraphicsExtractor graphics,
+            Font font,
+            String text,
+            int leftX,
+            int y,
+            float scale,
+            int baseColor,
+            int accentColor,
+            int effectLevel
+    )
+    {
+        drawAlignedStyledText(
+                graphics,
+                font,
+                text,
+                leftX,
+                y,
+                scale,
+                baseColor,
+                accentColor,
+                effectLevel,
+                false
+        );
+    }
+
+    private static void drawAlignedStyledText(
+            GuiGraphicsExtractor graphics,
+            Font font,
+            String text,
+            int anchorX,
+            int y,
+            float scale,
+            int baseColor,
+            int accentColor,
+            int effectLevel,
+            boolean rightAligned
+    )
+    {
+        graphics.pose().pushMatrix();
+        graphics.pose().scale(scale, scale);
+
+        float inverseScale = 1.0F / scale;
+
+        int scaledAnchorX =
+                Math.round(anchorX * inverseScale);
+
+        int scaledY =
+                Math.round(y * inverseScale);
+
+        int x =
+                rightAligned
+                        ? scaledAnchorX - font.width(text)
+                        : scaledAnchorX;
+
+        if (effectLevel >= 1)
+        {
+            graphics.text(font, text, x - 1, scaledY, accentColor, false);
+            graphics.text(font, text, x + 1, scaledY, accentColor, false);
+            graphics.text(font, text, x, scaledY - 1, accentColor, false);
+            graphics.text(font, text, x, scaledY + 1, accentColor, false);
+        }
+
+        if (effectLevel >= 2)
+        {
+            graphics.text(font, text, x - 1, scaledY - 1, accentColor, false);
+            graphics.text(font, text, x + 1, scaledY - 1, accentColor, false);
+            graphics.text(font, text, x - 1, scaledY + 1, accentColor, false);
+            graphics.text(font, text, x + 1, scaledY + 1, accentColor, false);
+        }
+
+        graphics.text(
+                font,
+                text,
+                x,
+                scaledY,
+                baseColor,
+                true
+        );
+
+        graphics.pose().popMatrix();
     }
 
     private static void drawCenteredStyledText(
