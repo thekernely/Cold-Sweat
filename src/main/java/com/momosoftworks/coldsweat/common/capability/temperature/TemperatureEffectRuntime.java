@@ -5,6 +5,7 @@ import com.momosoftworks.coldsweat.config.TemperatureEffectSettings;
 import com.momosoftworks.coldsweat.core.init.ModEffects;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
@@ -15,13 +16,21 @@ import net.minecraft.world.entity.player.Player;
  * Server-side temperature gameplay effects that can be expressed cleanly with
  * vanilla 26.2 attributes.
  *
- * M7 cold model:
+ * Locked M7 cold model:
  * - impairment begins at ~35 C and reaches full strength at ~33 C;
  * - up to 50% of normal health becomes unavailable to food-based natural
  *   regeneration as hypothermia deepens;
  * - below 33 C food regeneration collapses quickly;
- * - at and below 32 C food/saturation regeneration is fully disabled;
- * - direct/magical healing is not treated as food regeneration.
+ * - at and below 32 C food/saturation regeneration is fully disabled.
+ *
+ * Locked M7 heat model:
+ * - heat symptoms begin at ~39.5 C;
+ * - direct damage starts at 41 C;
+ * - food-based natural regeneration collapses from 41 -> 42 C;
+ * - at and above 42 C food/saturation regeneration is fully disabled.
+ *
+ * Direct/magical healing remains available on both sides as an emergency
+ * resource. Food cannot substitute for external rewarming or cooling.
  */
 public final class TemperatureEffectRuntime
 {
@@ -36,9 +45,9 @@ public final class TemperatureEffectRuntime
      *
      * LivingEntity.heal is used by many mechanics, so the distinction is
      * important: only vanilla food/saturation natural regeneration should be
-     * suppressed by the locked hypothermia model. Potions, regeneration
-     * effects, golden apples, commands, and other direct healing remain
-     * emergency resources.
+     * suppressed by critical body temperatures. Potions, regeneration effects,
+     * golden apples, commands, and other direct healing remain emergency
+     * resources.
      */
     private static final ThreadLocal<Player> NATURAL_REGEN_PLAYER =
             new ThreadLocal<>();
@@ -178,13 +187,19 @@ public final class TemperatureEffectRuntime
     /**
      * Limits ONLY food/saturation natural regeneration.
      *
-     * 33.0 C -> 100% of otherwise-allowed food regen
+     * Cold:
+     * 33.0 C -> 100%
      * 32.5 C -> 25%
      * 32.2 C -> 4%
      * 32.0 C -> 0%
      *
-     * The squared curve intentionally collapses fast. Food can buy time in the
-     * early critical band, but it cannot replace external heat.
+     * Heat:
+     * 41.0 C -> 100%
+     * 41.5 C -> 25%
+     * 41.8 C -> 4%
+     * 42.0 C -> 0%
+     *
+     * Direct/magical healing is deliberately outside this restriction.
      */
     public static float limitHealing(
             LivingEntity entity,
@@ -199,8 +214,7 @@ public final class TemperatureEffectRuntime
         }
 
         if (player.isCreative()
-                || player.isSpectator()
-                || player.hasEffect(ModEffects.ICE_RESISTANCE))
+                || player.isSpectator())
         {
             return healAmount;
         }
@@ -216,9 +230,24 @@ public final class TemperatureEffectRuntime
                         bodyStress
                 );
 
+        double coldRegenFactor =
+                player.hasEffect(ModEffects.ICE_RESISTANCE)
+                        ? 1.0
+                        : coldNaturalRegenerationFactor(
+                                coreCelsius
+                        );
+
+        double heatRegenFactor =
+                player.hasEffect(MobEffects.FIRE_RESISTANCE)
+                        ? 1.0
+                        : heatNaturalRegenerationFactor(
+                                coreCelsius
+                        );
+
         double regenFactor =
-                coldNaturalRegenerationFactor(
-                        coreCelsius
+                Math.min(
+                        coldRegenFactor,
+                        heatRegenFactor
                 );
 
         if (regenFactor <= 0.0)
@@ -232,6 +261,10 @@ public final class TemperatureEffectRuntime
                                 * regenFactor
                 );
 
+        /*
+         * Frozen health is a cold-only mechanic. At hot core temperatures
+         * getFrozenHealth naturally returns zero.
+         */
         double frozenHealth =
                 getFrozenHealth(player);
 
@@ -274,6 +307,31 @@ public final class TemperatureEffectRuntime
         double normalized =
                 clamp(
                         (coreCelsius - 32.0)
+                                / 1.0,
+                        0.0,
+                        1.0
+                );
+
+        return normalized * normalized;
+    }
+
+    public static double heatNaturalRegenerationFactor(
+            double coreCelsius
+    )
+    {
+        if (coreCelsius <= 41.0)
+        {
+            return 1.0;
+        }
+
+        if (coreCelsius >= 42.0)
+        {
+            return 0.0;
+        }
+
+        double normalized =
+                clamp(
+                        (42.0 - coreCelsius)
                                 / 1.0,
                         0.0,
                         1.0

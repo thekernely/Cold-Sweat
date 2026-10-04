@@ -13,6 +13,7 @@ import com.momosoftworks.coldsweat.fabric.temperature.EnvironmentSnapshotScanner
 import com.momosoftworks.coldsweat.fabric.temperature.RoomThermalManager;
 import com.momosoftworks.coldsweat.fabric.temperature.RoomThermalState;
 import com.momosoftworks.coldsweat.fabric.temperature.ThermalEnvironment;
+import com.momosoftworks.coldsweat.fabric.temperature.ThermoregulationRuntime;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.world.Difficulty;
@@ -679,6 +680,26 @@ public final class TemperatureModifierRuntime
             coreTemperature += rate;
         }
 
+        /*
+         * Direct surface/core exchange is intentionally independent from the
+         * legacy WORLD/RATE gate.
+         *
+         * - acute radiant heat can keep moving real CORE according to the
+         *   simulated hot surface;
+         * - powdered snow can rescue an overheated CORE even after WORLD has
+         *   returned to an otherwise comfortable range;
+         * - armor is not applied twice after heat has already reached the
+         *   simulated body surface.
+         */
+        if (!immuneToPressure)
+        {
+            coreTemperature +=
+                    ThermoregulationRuntime.applySurfaceCoreTransfer(
+                            entity,
+                            coreTemperature
+                    );
+        }
+
         double equilibrium =
                 TemperatureRuntime.calculateEquilibriumDelta(
                         coreTemperature,
@@ -704,8 +725,17 @@ public final class TemperatureModifierRuntime
          * Match upstream: equilibrium must not fight a CORE modifier/rate that
          * is currently driving temperature in the opposite direction.
          */
-        if (coreDeltaSign == 0
-                || coreDeltaSign == equilibriumSign)
+        boolean suppressChronicHotSnowRecovery =
+                equilibrium < 0.0
+                        && ThermoregulationRuntime
+                                .suppressEquilibriumCoolingInChronicHotSnow(
+                                        entity,
+                                        coreTemperature
+                                );
+
+        if (!suppressChronicHotSnowRecovery
+                && (coreDeltaSign == 0
+                    || coreDeltaSign == equilibriumSign))
         {
             coreTemperature += equilibrium;
         }

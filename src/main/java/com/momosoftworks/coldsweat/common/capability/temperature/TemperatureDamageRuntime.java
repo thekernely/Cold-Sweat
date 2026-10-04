@@ -3,10 +3,12 @@ package com.momosoftworks.coldsweat.common.capability.temperature;
 import com.momosoftworks.coldsweat.api.util.Temperature;
 import com.momosoftworks.coldsweat.config.TemperatureDamageSettings;
 import com.momosoftworks.coldsweat.core.init.ModEffects;
+import com.momosoftworks.coldsweat.fabric.temperature.SurfaceTemperatureRuntime;
 import com.momosoftworks.coldsweat.util.registries.ModDamageSources;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.damagesource.DamageSource;
@@ -37,6 +39,15 @@ public final class TemperatureDamageRuntime
 
     private static void tickPlayer(ServerPlayer player)
     {
+        /*
+         * Surface state is still updated on non-damage ticks so the fast layer
+         * remains smooth even though actual injury pulses only once per second.
+         */
+        double surfaceCelsius =
+                SurfaceTemperatureRuntime
+                        .updateAndGet(player)
+                        .surfaceCelsius();
+
         int interval =
                 TemperatureDamageSettings.DAMAGE_INTERVAL;
 
@@ -61,92 +72,80 @@ public final class TemperatureDamageRuntime
                         bodyStress
                 );
 
-        boolean tooHot =
-                coreCelsius
-                        >= TemperatureDamageSettings.HOT_DAMAGE_START_C;
+        boolean fireResistant =
+                player.hasEffect(MobEffects.FIRE_RESISTANCE)
+                        && TemperatureDamageSettings.FIRE_RESISTANCE_ENABLED;
 
-        boolean tooCold =
-                coreCelsius
-                        <= TemperatureDamageSettings.COLD_DAMAGE_START_C;
+        boolean iceResistant =
+                player.hasEffect(ModEffects.ICE_RESISTANCE)
+                        && TemperatureDamageSettings.ICE_RESISTANCE_ENABLED;
 
-        if (!tooHot && !tooCold)
+        if (coreCelsius
+                <= TemperatureDamageSettings.COLD_DAMAGE_START_C
+                && !iceResistant)
         {
-            return;
+            double coldResistance =
+                    clamp01(
+                            Temperature.get(
+                                    player,
+                                    Temperature.Trait.COLD_RESISTANCE
+                            )
+                    );
+
+            hurt(
+                    player,
+                    ModDamageSources.COLD,
+                    coldDamage(coreCelsius)
+                            * (1.0 - coldResistance)
+            );
         }
 
-        if (tooHot
-                && player.hasEffect(MobEffects.FIRE_RESISTANCE)
-                && TemperatureDamageSettings.FIRE_RESISTANCE_ENABLED)
+        if (!fireResistant)
         {
-            return;
-        }
+            double heatDamage = 0.0;
 
-        if (tooCold
-                && player.hasEffect(ModEffects.ICE_RESISTANCE)
-                && TemperatureDamageSettings.ICE_RESISTANCE_ENABLED)
-        {
-            return;
-        }
-
-        double resistance =
-                Temperature.get(
-                        player,
-                        tooHot
-                                ? Temperature.Trait.HEAT_RESISTANCE
-                                : Temperature.Trait.COLD_RESISTANCE
-                );
-
-        resistance = clamp01(resistance);
-
-        double damage =
-                tooCold
-                        ? coldDamage(coreCelsius)
-                        : hotDamage(coreCelsius);
-
-        damage *= 1.0 - resistance;
-
-        if (damage <= 0.0)
-        {
-            return;
-        }
-
-        Registry<DamageType> damageTypes =
-                player.level()
-                        .registryAccess()
-                        .lookupOrThrow(
-                                Registries.DAMAGE_TYPE
+            /*
+             * Systemic hyperthermia remains tied to CORE/BODY Celsius and Cold
+             * Sweat's HEAT_RESISTANCE trait.
+             */
+            if (coreCelsius
+                    >= TemperatureDamageSettings.HOT_DAMAGE_START_C)
+            {
+                double heatResistance =
+                        clamp01(
+                                Temperature.get(
+                                        player,
+                                        Temperature.Trait.HEAT_RESISTANCE
+                                )
                         );
 
-        DamageSource source =
-                new DamageSource(
-                        damageTypes.getOrThrow(
-                                tooHot
-                                        ? ModDamageSources.HOT
-                                        : ModDamageSources.COLD
-                        )
-                );
+                heatDamage +=
+                        hotDamage(coreCelsius)
+                                * (1.0 - heatResistance);
+            }
 
-        player.hurtServer(
-                player.level(),
-                source,
-                (float) damage
-        );
+            /*
+             * Surface/scalding injury is separate. HEAT_RESISTANCE protects
+             * systemic thermal stress; it does not make exposed skin immune to
+             * an intense radiant source. Fire Resistance suppresses this path.
+             *
+             * M7 reuses the existing HOT damage type. A dedicated scalding
+             * damage type/death message can be added later without changing
+             * this physiology.
+             */
+            heatDamage +=
+                    scaldingDamage(
+                            surfaceCelsius
+                    );
+
+            hurt(
+                    player,
+                    ModDamageSources.HOT,
+                    heatDamage
+            );
+        }
     }
 
-    /**
-     * Locked M7 cold-damage curve.
-     *
-     * 33 C  -> 0.020 HP/s  (barely measurable)
-     * 32.5  -> ~0.032 HP/s
-     * 32 C  -> 0.050 HP/s
-     * 31 C  -> 0.125 HP/s  (few-minute survival scale)
-     * 30 C  -> ~0.313 HP/s
-     * 29 C  -> ~0.781 HP/s
-     *
-     * Damage is exponential rather than a linear cliff. At deep hypothermia
-     * the cap prevents pathological values while still making survival rapidly
-     * untenable.
-     */
     private static double coldDamage(double coreCelsius)
     {
         double degreesBelow =
@@ -169,34 +168,90 @@ public final class TemperatureDamageRuntime
         );
     }
 
-    /**
-     * Heat is intentionally still the M7.12l placeholder curve. We are locking
-     * cold first and will rebalance hyperthermia separately next.
-     */
     private static double hotDamage(double coreCelsius)
     {
-        double excess =
+        double degreesAbove =
                 Math.max(
                         0.0,
                         coreCelsius
                                 - TemperatureDamageSettings.HOT_DAMAGE_START_C
                 );
 
-        double ramp =
-                TemperatureDamageSettings.HOT_DAMAGE_RAMP_C > 0.0
+        double damage =
+                TemperatureDamageSettings.HOT_BASE_DAMAGE
+                        * Math.pow(
+                                TemperatureDamageSettings.HOT_DAMAGE_MULTIPLIER_PER_C,
+                                degreesAbove
+                        );
+
+        return Math.min(
+                TemperatureDamageSettings.HOT_MAX_DAMAGE,
+                damage
+        );
+    }
+
+    private static double scaldingDamage(
+            double surfaceCelsius
+    )
+    {
+        if (surfaceCelsius
+                <= TemperatureDamageSettings.SCALDING_DAMAGE_START_C)
+        {
+            return 0.0;
+        }
+
+        double range =
+                TemperatureDamageSettings.SCALDING_DAMAGE_FULL_C
+                        - TemperatureDamageSettings.SCALDING_DAMAGE_START_C;
+
+        double normalized =
+                range > 0.0
                         ? clamp01(
-                                excess
-                                        / TemperatureDamageSettings.HOT_DAMAGE_RAMP_C
+                                (surfaceCelsius
+                                        - TemperatureDamageSettings
+                                                .SCALDING_DAMAGE_START_C)
+                                        / range
                         )
                         : 1.0;
 
-        double smoothRamp =
-                ramp * ramp * (3.0 - 2.0 * ramp);
+        double factor =
+                normalized
+                        * normalized
+                        * (3.0 - 2.0 * normalized);
 
-        return lerp(
-                TemperatureDamageSettings.HOT_MIN_DAMAGE,
-                TemperatureDamageSettings.HOT_MAX_DAMAGE,
-                smoothRamp
+        return TemperatureDamageSettings.SCALDING_MAX_DAMAGE
+                * factor;
+    }
+
+    private static void hurt(
+            ServerPlayer player,
+            ResourceKey<DamageType> damageType,
+            double damage
+    )
+    {
+        if (damage <= 0.0)
+        {
+            return;
+        }
+
+        Registry<DamageType> damageTypes =
+                player.level()
+                        .registryAccess()
+                        .lookupOrThrow(
+                                Registries.DAMAGE_TYPE
+                        );
+
+        DamageSource source =
+                new DamageSource(
+                        damageTypes.getOrThrow(
+                                damageType
+                        )
+                );
+
+        player.hurtServer(
+                player.level(),
+                source,
+                (float) damage
         );
     }
 
@@ -206,17 +261,6 @@ public final class TemperatureDamageRuntime
                 0.0,
                 Math.min(1.0, value)
         );
-    }
-
-    private static double lerp(
-            double start,
-            double end,
-            double delta
-    )
-    {
-        return start
-                + (end - start)
-                * delta;
     }
 
     private TemperatureDamageRuntime()
