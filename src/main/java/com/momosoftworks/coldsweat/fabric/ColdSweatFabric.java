@@ -3,6 +3,7 @@ package com.momosoftworks.coldsweat.fabric;
 import com.momosoftworks.coldsweat.api.registry.InsulationRegistry;
 import com.momosoftworks.coldsweat.api.registry.ItemTemperatureRegistry;
 import com.momosoftworks.coldsweat.common.capability.handler.EntityTempManager;
+import com.momosoftworks.coldsweat.common.capability.handler.PlayerHydrationManager;
 import com.momosoftworks.coldsweat.common.capability.temperature.TemperatureModifierRuntime;
 import com.momosoftworks.coldsweat.common.capability.temperature.TemperatureDamageRuntime;
 import com.momosoftworks.coldsweat.core.init.BlockTempInit;
@@ -62,6 +63,7 @@ public final class ColdSweatFabric implements ModInitializer
         ModCreativeTabs.initialize();
         ModDataAttachments.initialize();
         EntityTempManager.initialize();
+        PlayerHydrationManager.initialize();
         TempModifierInit.initialize();
         BlockTempInit.initialize();
         MachineBlockTempInit.initialize();

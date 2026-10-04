@@ -46,6 +46,11 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/common/capability/temperature/TemperatureData.java'
             include 'com/momosoftworks/coldsweat/common/capability/temperature/TemperatureRuntime.java'
             include 'com/momosoftworks/coldsweat/common/capability/handler/EntityTempManager.java'
+
+            // M8.1: persistent synchronized player hydration state foundation.
+            include 'com/momosoftworks/coldsweat/common/capability/hydration/HydrationData.java'
+            include 'com/momosoftworks/coldsweat/common/capability/handler/PlayerHydrationManager.java'
+            include 'com/momosoftworks/coldsweat/api/util/Hydration.java'
             include 'com/momosoftworks/coldsweat/util/registries/ModGameRules.java'
             include 'com/momosoftworks/coldsweat/util/registries/ModDamageSources.java'
 

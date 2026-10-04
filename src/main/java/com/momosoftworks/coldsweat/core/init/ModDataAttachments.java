@@ -1,5 +1,6 @@
 package com.momosoftworks.coldsweat.core.init;
 
+import com.momosoftworks.coldsweat.common.capability.hydration.HydrationData;
 import com.momosoftworks.coldsweat.common.capability.temperature.TemperatureData;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
 import net.fabricmc.fabric.api.attachment.v1.AttachmentRegistry;
@@ -33,9 +34,30 @@ public final class ModDataAttachments
                             )
             );
 
+    /**
+     * M8 player hydration state.
+     *
+     * Hydration is player-only, persistent, and synchronized for later HUD
+     * presentation. Death reset/copy semantics are owned explicitly by
+     * PlayerHydrationManager rather than copyOnDeath().
+     */
+    public static final AttachmentType<HydrationData> PLAYER_HYDRATION =
+            AttachmentRegistry.create(
+                    ColdSweatFabric.id("player_hydration"),
+                    builder -> builder
+                            .initializer(HydrationData::new)
+                            .persistent(HydrationData.CODEC)
+                            .syncWith(
+                                    HydrationData.STREAM_CODEC,
+                                    AttachmentSyncPredicate.all()
+                            )
+            );
+
     public static void initialize()
     {
-        ColdSweatFabric.LOGGER.info("Registering Cold Sweat persistent synchronized temperature attachment.");
+        ColdSweatFabric.LOGGER.info(
+                "Registering Cold Sweat persistent synchronized temperature and hydration attachments."
+        );
     }
 
     private ModDataAttachments()
