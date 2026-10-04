@@ -2,6 +2,7 @@ package com.momosoftworks.coldsweat.fabric.client;
 
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -47,6 +48,30 @@ public final class TemperatureHudRenderer
 
     public static void register()
     {
+        /*
+         * M7.14d: shift vanilla's held-item tooltip through Fabric's own HUD
+         * registry instead of mixing into Minecraft's private Hud methods.
+         *
+         * Minecraft/Fabric still own the actual tooltip element, including
+         * visibility, timer, text, rarity formatting, fade and centering.
+         * We only wrap its extraction in a temporary 12px upward transform.
+         */
+        HudElementRegistry.replaceElement(
+                VanillaHudElements.HELD_ITEM_TOOLTIP,
+                original -> (graphics, deltaTracker) ->
+                {
+                    graphics.pose().pushMatrix();
+                    graphics.pose().translate(0.0F, -12.0F);
+
+                    original.extractRenderState(
+                            graphics,
+                            deltaTracker
+                    );
+
+                    graphics.pose().popMatrix();
+                }
+        );
+
         HudElementRegistry.addLast(
                 ColdSweatFabric.id("temperature_hud"),
                 TemperatureHudRenderer::render
@@ -72,11 +97,11 @@ public final class TemperatureHudRenderer
         int centerX = graphics.guiWidth() / 2;
 
         /*
-         * M7.13d: use the narrow strip between vanilla's selected-item name
-         * and the health/XP HUD.  Keeping the presentation to one horizontal
-         * row avoids both overlap and the visually awkward floating stack.
+         * M7.14d: reserve one stable row above vanilla armor/health.
+         * The temperature HUD stays fixed; the transient held-item tooltip is
+         * shifted upward independently through Fabric's HUD registry.
          */
-        int iconY = graphics.guiHeight() - 49;
+        int iconY = graphics.guiHeight() - 59;
 
         renderNumericReadouts(
                 graphics,
