@@ -4,7 +4,8 @@
   "package": "com.momosoftworks.coldsweat.mixin",
   "mixins": [
     "LivingEntityMixin",
-    "FoodDataMixin"
+    "FoodDataMixin",
+    "TransmuteRecipeDisplayMixin"
   ],
   "client": [
     "client.FrozenHeartHudMixin"

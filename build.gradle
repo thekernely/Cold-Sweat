@@ -89,6 +89,7 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/common/capability/temperature/TemperatureEffectRuntime.java'
             include 'com/momosoftworks/coldsweat/mixin/LivingEntityMixin.java'
             include 'com/momosoftworks/coldsweat/mixin/FoodDataMixin.java'
+            include 'com/momosoftworks/coldsweat/mixin/TransmuteRecipeDisplayMixin.java'
             include 'com/momosoftworks/coldsweat/mixin/client/FrozenHeartHudMixin.java'
             include 'com/momosoftworks/coldsweat/util/world/WorldTemperatureUtil.java'
             include 'com/momosoftworks/coldsweat/config/WorldTemperatureSettings.java'
@@ -155,6 +156,11 @@ sourceSets {
             include 'assets/cold_sweat/textures/particle/**'
             include 'assets/cold_sweat/textures/mob_effect/**'
             include 'assets/cold_sweat/lang/**'
+
+            // M8.10a: close the resource gap for legacy registered items.
+            include 'assets/cold_sweat/items/**'
+            include 'assets/cold_sweat/models/item/**'
+            include 'assets/cold_sweat/textures/item/**'
             include 'data/c/tags/worldgen/biome/**'
             include 'data/cold_sweat/damage_type/**'
             include 'data/minecraft/tags/damage_type/no_knockback.json'
