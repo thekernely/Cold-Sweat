@@ -6,6 +6,7 @@ import com.momosoftworks.coldsweat.common.container.IceboxMenu;
 import com.momosoftworks.coldsweat.core.init.ModMenus;
 import com.momosoftworks.coldsweat.core.init.ModFluids;
 import com.momosoftworks.coldsweat.fabric.client.DehydrationSymptomRenderer;
+import com.momosoftworks.coldsweat.fabric.client.HeatExposureParticleRuntime;
 import com.momosoftworks.coldsweat.fabric.client.HydrationHudRenderer;
 import com.momosoftworks.coldsweat.fabric.client.TemperatureHudRenderer;
 import com.momosoftworks.coldsweat.fabric.client.ThermalSymptomRenderer;
@@ -35,6 +36,7 @@ public final class ColdSweatFabricClient implements ClientModInitializer
          * Register physiological screen feedback before the temperature HUD so
          * the centered instrument remains crisp above the subtle edge tint.
          */
+        HeatExposureParticleRuntime.register();
         ThermalSymptomRenderer.register();
         DehydrationSymptomRenderer.register();
         HydrationHudRenderer.register();
