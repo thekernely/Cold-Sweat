@@ -7,6 +7,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.crafting.AbstractCookingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.item.crafting.SingleRecipeInput;
@@ -57,7 +58,20 @@ public final class PurifiedWaterSmeltingRecipe
             SingleRecipeInput recipeInput
     )
     {
-        return assemblePurified();
+        return assemblePurified(
+                recipeInput
+        );
+    }
+
+    @Override
+    public boolean matches(
+            SingleRecipeInput recipeInput,
+            Level level
+    )
+    {
+        return matchesHydrationContainer(
+                recipeInput
+        );
     }
 
     @Override

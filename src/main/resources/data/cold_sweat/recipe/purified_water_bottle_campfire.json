@@ -2,7 +2,15 @@
   "type": "cold_sweat:purified_water_bottle_campfire",
   "cookingtime": 100,
   "experience": 0.05,
-  "ingredient": "minecraft:potion",
+  "ingredient": [
+    "minecraft:potion",
+    "cold_sweat:leather_flask",
+    "cold_sweat:copper_flask",
+    "cold_sweat:iron_flask",
+    "cold_sweat:gold_flask",
+    "cold_sweat:diamond_flask",
+    "cold_sweat:netherite_flask"
+  ],
   "result": {
     "id": "cold_sweat:purified_water_bottle"
   }

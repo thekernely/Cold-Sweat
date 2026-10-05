@@ -33,7 +33,7 @@ public final class WaterPurificationRecipes
         );
 
         ColdSweatFabric.LOGGER.info(
-                "Registering Cold Sweat bottled-water purification recipes."
+                "Registering Cold Sweat bottle and flask water purification recipes."
         );
     }
 
