@@ -1,0 +1,14 @@
+{
+  "values": {
+    "minecraft:apple": 0.5,
+    "minecraft:carrot": 0.5,
+    "minecraft:beetroot": 0.5,
+    "minecraft:melon_slice": 1.0,
+    "minecraft:sweet_berries": 0.5,
+    "minecraft:glow_berries": 0.5,
+    "minecraft:beetroot_soup": 2.0,
+    "minecraft:mushroom_stew": 2.0,
+    "minecraft:rabbit_stew": 2.0,
+    "minecraft:suspicious_stew": 2.0
+  }
+}

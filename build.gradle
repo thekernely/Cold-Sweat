@@ -218,6 +218,9 @@ sourceSets {
             include 'data/cold_sweat/recipe/install_filter_*_flask.json'
             include 'data/cold_sweat/recipe/*_flask_upgrade.json'
             include 'data/cold_sweat/recipe/netherite_flask_smithing.json'
+
+            // M8.7: explicit data-driven food hydration values.
+            include 'data/cold_sweat/food_hydration/**'
         }
     }
 }

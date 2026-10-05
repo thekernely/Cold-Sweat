@@ -1,0 +1,22 @@
+{
+  "values": {
+    "farmersdelight:tomato": 1.0,
+    "farmersdelight:cabbage": 0.5,
+    "farmersdelight:cabbage_leaf": 0.5,
+    "farmersdelight:onion": 0.5,
+    "farmersdelight:mixed_salad": 1.0,
+    "farmersdelight:milk_bottle": 1.5,
+    "farmersdelight:apple_cider": 2.0,
+    "farmersdelight:melon_juice": 2.0,
+    "farmersdelight:hot_cocoa": 1.0,
+    "farmersdelight:bone_broth": 2.0,
+    "farmersdelight:beef_stew": 2.0,
+    "farmersdelight:vegetable_soup": 2.0,
+    "farmersdelight:chicken_soup": 2.0,
+    "farmersdelight:fish_stew": 2.0,
+    "farmersdelight:pumpkin_soup": 2.0,
+    "farmersdelight:baked_cod_stew": 2.0,
+    "farmersdelight:noodle_soup": 2.0,
+    "farmersdelight:onion_soup": 2.0
+  }
+}
