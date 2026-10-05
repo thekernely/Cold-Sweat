@@ -27,6 +27,13 @@ public final class ModCreativeTabs
                 output.accept(ModItems.WATERSKIN);
                 output.accept(ModItems.FILLED_WATERSKIN);
                 output.accept(ModItems.PURIFIED_WATER_BOTTLE);
+                output.accept(ModItems.WATER_FILTER);
+                output.accept(ModItems.LEATHER_FLASK);
+                output.accept(ModItems.COPPER_FLASK);
+                output.accept(ModItems.IRON_FLASK);
+                output.accept(ModItems.GOLD_FLASK);
+                output.accept(ModItems.DIAMOND_FLASK);
+                output.accept(ModItems.NETHERITE_FLASK);
                 output.accept(ModItems.THERMOMETER);
 
                 output.accept(ModItems.HOGLIN_HELMET);

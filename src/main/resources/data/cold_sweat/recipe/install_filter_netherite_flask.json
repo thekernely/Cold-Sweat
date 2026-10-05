@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_transmute",
+  "category": "misc",
+  "group": "cold_sweat_flask_filter",
+  "input": "cold_sweat:netherite_flask",
+  "material": "cold_sweat:water_filter",
+  "result": {
+    "id": "cold_sweat:netherite_flask",
+    "components": {
+      "cold_sweat:flask_filter_charges": 5
+    }
+  }
+}

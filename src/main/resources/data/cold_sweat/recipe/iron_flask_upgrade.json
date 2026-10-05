@@ -1,0 +1,14 @@
+{
+  "type": "minecraft:crafting_transmute",
+  "category": "misc",
+  "group": "cold_sweat_flask_upgrade",
+  "input": "cold_sweat:copper_flask",
+  "material": "minecraft:iron_ingot",
+  "material_count": {
+    "min": 8,
+    "max": 8
+  },
+  "result": {
+    "id": "cold_sweat:iron_flask"
+  }
+}

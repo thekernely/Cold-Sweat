@@ -40,6 +40,37 @@ public final class ModItemComponents
                     .build()
     );
 
+    /*
+     * M8.5 reusable-flask state.
+     *
+     * Capacity is intrinsic to the FlaskItem tier and is intentionally not a
+     * mutable component. These three values are the state that must survive
+     * smithing upgrades and ordinary ItemStack serialization.
+     */
+    public static final DataComponentType<Integer> FLASK_WATER_AMOUNT = register(
+            "flask_water_amount",
+            DataComponentType.<Integer>builder()
+                    .persistent(Codec.intRange(0, 60))
+                    .networkSynchronized(ByteBufCodecs.VAR_INT)
+                    .build()
+    );
+
+    public static final DataComponentType<Boolean> FLASK_PURIFIED = register(
+            "flask_purified",
+            DataComponentType.<Boolean>builder()
+                    .persistent(Codec.BOOL)
+                    .networkSynchronized(ByteBufCodecs.BOOL)
+                    .build()
+    );
+
+    public static final DataComponentType<Integer> FLASK_FILTER_CHARGES = register(
+            "flask_filter_charges",
+            DataComponentType.<Integer>builder()
+                    .persistent(Codec.intRange(0, 5))
+                    .networkSynchronized(ByteBufCodecs.VAR_INT)
+                    .build()
+    );
+
     @Deprecated(since = "2.4", forRemoval = true)
     public static final DataComponentType<Double> SOULSPRING_LAMP_FUEL = register(
             "fuel",

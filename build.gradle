@@ -205,6 +205,19 @@ sourceSets {
             // M8.4: vanilla raw-water bottle + purified bottle resources.
             include 'assets/cold_sweat/items/purified_water_bottle.json'
             include 'data/cold_sweat/recipe/purified_water_bottle_*.json'
+
+            // M8.5/M8.6: reusable flask family, filters, and upgrades.
+            include 'assets/cold_sweat/items/*_flask.json'
+            include 'assets/cold_sweat/models/item/*_flask.json'
+            include 'assets/cold_sweat/textures/item/*_flask.png'
+            include 'assets/cold_sweat/items/water_filter.json'
+            include 'assets/cold_sweat/models/item/water_filter.json'
+            include 'assets/cold_sweat/textures/item/water_filter.png'
+            include 'data/cold_sweat/recipe/leather_flask.json'
+            include 'data/cold_sweat/recipe/water_filter.json'
+            include 'data/cold_sweat/recipe/install_filter_*_flask.json'
+            include 'data/cold_sweat/recipe/*_flask_upgrade.json'
+            include 'data/cold_sweat/recipe/netherite_flask_smithing.json'
         }
     }
 }

@@ -5,6 +5,7 @@ import com.momosoftworks.coldsweat.common.item.SoulSproutItem;
 import com.momosoftworks.coldsweat.common.item.ThermometerItem;
 import com.momosoftworks.coldsweat.common.item.WaterskinItem;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
+import com.momosoftworks.coldsweat.fabric.hydration.FlaskItem;
 import com.momosoftworks.coldsweat.fabric.hydration.PurifiedWaterBottleItem;
 import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponents;
@@ -83,6 +84,59 @@ public final class ModItems
                             Consumables.DEFAULT_DRINK
                     )
                     .usingConvertsTo(Items.GLASS_BOTTLE)
+    );
+
+    /*
+     * M8.6b disposable flask filter.
+     *
+     * Installing a fresh filter in a flask resets that flask's filter charge
+     * component to 5. The filter itself has no durability; the installed
+     * charges live on the flask stack.
+     */
+    public static final Item WATER_FILTER = register(
+            "water_filter",
+            new Item.Properties()
+    );
+
+    /*
+     * M8.5 reusable flask tiers.
+     *
+     * Capacities are fixed by tier:
+     * Leather 20 -> Copper 25 -> Iron 30 -> Gold 35 -> Diamond 45
+     * -> Netherite 60.
+     *
+     * Mutable contents/filter state is component-backed and therefore survives
+     * vanilla smithing-transform upgrades.
+     */
+    public static final Item LEATHER_FLASK = registerFlask(
+            "leather_flask",
+            20
+    );
+
+    public static final Item COPPER_FLASK = registerFlask(
+            "copper_flask",
+            25
+    );
+
+    public static final Item IRON_FLASK = registerFlask(
+            "iron_flask",
+            30
+    );
+
+    public static final Item GOLD_FLASK = registerFlask(
+            "gold_flask",
+            35
+    );
+
+    public static final Item DIAMOND_FLASK = registerFlask(
+            "diamond_flask",
+            45
+    );
+
+    public static final Item NETHERITE_FLASK = registerFlask(
+            "netherite_flask",
+            60,
+            true
     );
 
     // M6 thermal-machine block items. Hearth intentionally maps to hearth_bottom.
@@ -174,6 +228,59 @@ public final class ModItems
                                 .consumeSeconds(0.8f)
                                 .build()
                 )
+        );
+    }
+
+    private static Item registerFlask(
+            String path,
+            int capacity
+    )
+    {
+        return registerFlask(
+                path,
+                capacity,
+                false
+        );
+    }
+
+    private static Item registerFlask(
+            String path,
+            int capacity,
+            boolean fireResistant
+    )
+    {
+        Item.Properties properties =
+                new Item.Properties()
+                        .stacksTo(1)
+                        .component(
+                                DataComponents.CONSUMABLE,
+                                Consumables.DEFAULT_DRINK
+                        )
+                        .component(
+                                ModItemComponents.FLASK_WATER_AMOUNT,
+                                0
+                        )
+                        .component(
+                                ModItemComponents.FLASK_PURIFIED,
+                                false
+                        )
+                        .component(
+                                ModItemComponents.FLASK_FILTER_CHARGES,
+                                0
+                        );
+
+        if (fireResistant)
+        {
+            properties.fireResistant();
+        }
+
+        return register(
+                path,
+                itemProperties -> new FlaskItem(
+                        itemProperties,
+                        capacity
+                ),
+                properties
         );
     }
 

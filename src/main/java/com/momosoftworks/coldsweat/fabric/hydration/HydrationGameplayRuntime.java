@@ -230,6 +230,97 @@ public final class HydrationGameplayRuntime
         return InteractionResult.SUCCESS;
     }
 
+    public static InteractionResult tryFillFlask(
+            Player player,
+            Level level,
+            InteractionHand hand
+    )
+    {
+        ItemStack stack =
+                player.getItemInHand(hand);
+
+        if (!FlaskItem.isFlask(stack)
+                || FlaskItem.waterAmount(stack)
+                >= FlaskItem.capacity(stack))
+        {
+            return InteractionResult.PASS;
+        }
+
+        BlockPos sourceWaterPos =
+                findLookedAtSourceWater(
+                        player,
+                        level
+                );
+
+        if (sourceWaterPos == null)
+        {
+            return InteractionResult.PASS;
+        }
+
+        /*
+         * M8.6b source-water refill:
+         *
+         * - one interaction fills to the current tier's capacity;
+         * - an installed filter purifies the ENTIRE flask;
+         * - every refill operation consumes exactly one filter charge, even a
+         *   19/20 -> 20/20 top-up;
+         * - the fifth filtered refill removes the filter (5 -> 4 -> ... -> 0);
+         * - without a filter, natural source water is untreated;
+         * - latest refill determines whole-flask quality.
+         */
+        if (level.isClientSide())
+        {
+            level.playSound(
+                    player,
+                    sourceWaterPos,
+                    SoundEvents.BOTTLE_FILL,
+                    SoundSource.PLAYERS,
+                    1.0F,
+                    1.0F
+            );
+
+            player.swing(hand);
+            return InteractionResult.SUCCESS;
+        }
+
+        int filterCharges =
+                FlaskItem.filterCharges(stack);
+
+        boolean filtered =
+                filterCharges > 0;
+
+        FlaskItem.setWaterAmount(
+                stack,
+                FlaskItem.capacity(stack)
+        );
+
+        FlaskItem.setPurified(
+                stack,
+                filtered
+        );
+
+        if (filtered)
+        {
+            FlaskItem.setFilterCharges(
+                    stack,
+                    filterCharges - 1
+            );
+        }
+
+        level.playSound(
+                player,
+                sourceWaterPos,
+                SoundEvents.BOTTLE_FILL,
+                SoundSource.PLAYERS,
+                1.0F,
+                1.0F
+        );
+
+        player.swing(hand);
+
+        return InteractionResult.SUCCESS;
+    }
+
     private static InteractionResult guardWaterBottleUse(
             Player player,
             Level level,

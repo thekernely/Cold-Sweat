@@ -1,0 +1,9 @@
+{
+  "type": "minecraft:smithing_transform",
+  "base": "cold_sweat:diamond_flask",
+  "addition": "minecraft:netherite_ingot",
+  "result": {
+    "id": "cold_sweat:netherite_flask"
+  },
+  "template": "minecraft:netherite_upgrade_smithing_template"
+}

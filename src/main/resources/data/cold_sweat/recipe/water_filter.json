@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "minecraft:paper",
+    "minecraft:paper",
+    "minecraft:charcoal"
+  ],
+  "result": {
+    "id": "cold_sweat:water_filter"
+  }
+}

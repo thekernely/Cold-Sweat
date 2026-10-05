@@ -1,0 +1,14 @@
+{
+  "type": "minecraft:crafting_transmute",
+  "category": "misc",
+  "group": "cold_sweat_flask_upgrade",
+  "input": "cold_sweat:gold_flask",
+  "material": "minecraft:diamond",
+  "material_count": {
+    "min": 8,
+    "max": 8
+  },
+  "result": {
+    "id": "cold_sweat:diamond_flask"
+  }
+}
