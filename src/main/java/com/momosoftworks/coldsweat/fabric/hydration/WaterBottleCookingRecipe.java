@@ -1,5 +1,6 @@
 package com.momosoftworks.coldsweat.fabric.hydration;
 
+import com.momosoftworks.coldsweat.common.item.FilledWaterskinItem;
 import com.momosoftworks.coldsweat.core.init.ModItems;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.ItemStack;
@@ -10,13 +11,13 @@ import net.minecraft.world.item.crafting.SingleRecipeInput;
 /**
  * Component-aware match/output shared by all three hydration heat recipes.
  *
- * The historical class name is kept to avoid unnecessary file churn, but this
- * now handles both:
+ * Heat treatment now handles:
  * - vanilla water bottles -> Cold Sweat purified water bottles
  * - reusable flasks -> same flask stack, same amount/filter state, purified
+ * - filled Waterskins -> same one-use Waterskin, Very Warm + Purified
  *
- * Flask heat treatment is deliberately state-preserving:
- * it does not refill the flask and does not consume a filter charge.
+ * Flask/Waterskin heat treatment is state-preserving: it does not refill a
+ * container and does not consume a Flask filter charge.
  */
 public interface WaterBottleCookingRecipe
 {
@@ -40,6 +41,18 @@ public interface WaterBottleCookingRecipe
             return result;
         }
 
+        if (stack.is(ModItems.FILLED_WATERSKIN))
+        {
+            ItemStack result =
+                    stack.copyWithCount(1);
+
+            FilledWaterskinItem.heatAndPurify(
+                    result
+            );
+
+            return result;
+        }
+
         return new ItemStack(
                 ModItems.PURIFIED_WATER_BOTTLE
         );
@@ -56,6 +69,12 @@ public interface WaterBottleCookingRecipe
         {
             return FlaskItem.waterAmount(stack) > 0
                     && !FlaskItem.isPurified(stack);
+        }
+
+        if (stack.is(ModItems.FILLED_WATERSKIN))
+        {
+            return !FilledWaterskinItem.isPurified(stack)
+                    || !FilledWaterskinItem.isVeryWarm(stack);
         }
 
         PotionContents contents =

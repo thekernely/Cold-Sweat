@@ -46,6 +46,11 @@
   "tooltip.cold_sweat.flask.purified":    "Purified Water",
   "tooltip.cold_sweat.flask.uses":        "Uses: %s / %s",
   "tooltip.cold_sweat.flask.filter":      "Filter: %s / %s",
+  "tooltip.cold_sweat.waterskin.cold":       "Cold",
+  "tooltip.cold_sweat.waterskin.warm":       "Warm",
+  "tooltip.cold_sweat.waterskin.very_warm":  "Very Warm",
+  "tooltip.cold_sweat.waterskin.untreated":  "Untreated Water",
+  "tooltip.cold_sweat.waterskin.purified":   "Purified Water",
 
   "item.minecraft.potion.effect.ice_resistance":           "Potion of Ice Resistance",
   "item.minecraft.lingering_potion.effect.ice_resistance": "Lingering Potion of Ice Resistance",
@@ -83,6 +88,7 @@
 
 
   "effect.cold_sweat.warmth":           "Warmth",
+  "effect.cold_sweat.warming":          "Warming",
   "effect.cold_sweat.frigidness":       "Frigidness",
   "effect.cold_sweat.ice_resistance":   "Ice Resistance",
   "effect.cold_sweat.grace":            "Grace",

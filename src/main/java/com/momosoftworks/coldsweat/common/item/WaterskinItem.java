@@ -1,12 +1,12 @@
 package com.momosoftworks.coldsweat.common.item;
 
 import com.momosoftworks.coldsweat.api.util.Temperature;
-import com.momosoftworks.coldsweat.common.capability.temperature.TemperatureRuntime;
 import com.momosoftworks.coldsweat.core.init.ModItemComponents;
 import com.momosoftworks.coldsweat.core.init.ModItems;
 import com.momosoftworks.coldsweat.core.init.ModSounds;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
@@ -22,8 +22,10 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 
 /**
- * Empty waterskin. Restores the upstream source-water and water-cauldron fill
- * paths without pulling NeoForge fluid capabilities into the Fabric port.
+ * Empty Waterskin source-water and cauldron fill paths.
+ *
+ * M8.10b stores the fill-time effective environment as Celsius. Natural water
+ * is always untreated; the cooking path may later make it Very Warm + Purified.
  */
 public final class WaterskinItem extends Item
 {
@@ -53,9 +55,20 @@ public final class WaterskinItem extends Item
             return InteractionResult.PASS;
         }
 
+        playFillFeedback(
+                level,
+                player,
+                hand,
+                hit.getBlockPos()
+        );
+
         if (!level.isClientSide())
         {
-            fill(player, player.getItemInHand(hand), hand);
+            fill(
+                    player,
+                    player.getItemInHand(hand),
+                    hand
+            );
         }
 
         return InteractionResult.SUCCESS;
@@ -79,13 +92,29 @@ public final class WaterskinItem extends Item
             return InteractionResult.PASS;
         }
 
+        playFillFeedback(
+                level,
+                player,
+                context.getHand(),
+                pos
+        );
+
         if (!level.isClientSide())
         {
             if (!player.isCreative())
             {
-                LayeredCauldronBlock.lowerFillLevel(state, level, pos);
+                LayeredCauldronBlock.lowerFillLevel(
+                        state,
+                        level,
+                        pos
+                );
             }
-            fill(player, context.getItemInHand(), context.getHand());
+
+            fill(
+                    player,
+                    context.getItemInHand(),
+                    context.getHand()
+            );
         }
 
         return InteractionResult.SUCCESS;
@@ -100,7 +129,11 @@ public final class WaterskinItem extends Item
         ItemStack filled = new ItemStack(ModItems.FILLED_WATERSKIN);
         filled.set(
                 ModItemComponents.WATER_TEMPERATURE,
-                getFillTemperature(player)
+                getFillTemperatureCelsius(player)
+        );
+        filled.set(
+                ModItemComponents.WATERSKIN_PURIFIED,
+                false
         );
 
         if (player.isCreative())
@@ -123,30 +156,59 @@ public final class WaterskinItem extends Item
             player.setItemInHand(hand, filled);
         }
 
-        player.playSound(
-                ModSounds.WATERSKIN_FILL.value(),
-                2.0F,
-                0.9F + player.getRandom().nextFloat() * 0.2F
-        );
     }
 
-    private static double getFillTemperature(Player player)
+    /**
+     * Successful fills should feel like a physical container interaction, even
+     * though empty and filled Waterskins are separate registered items.
+     *
+     * On the client this gives the initiating player zero-latency feedback. On
+     * the server the same call broadcasts the sound/swing to nearby players;
+     * passing the initiating player to playSound prevents a duplicate sound
+     * from being sent back to that client.
+     */
+    private static void playFillFeedback(
+            Level level,
+            Player player,
+            InteractionHand hand,
+            BlockPos sourcePos
+    )
     {
-        double world = Temperature.get(player, Temperature.Trait.WORLD);
-        double freezing = Temperature.get(player, Temperature.Trait.FREEZING_POINT);
-        double burning = Temperature.get(player, Temperature.Trait.BURNING_POINT);
+        float pitch =
+                0.9F
+                        + player.getRandom().nextFloat()
+                        * 0.2F;
 
-        if (Double.compare(freezing, 0.0) == 0
-                && Double.compare(burning, 0.0) == 0)
-        {
-            freezing = TemperatureRuntime.DEFAULT_FREEZING_POINT;
-            burning = TemperatureRuntime.DEFAULT_BURNING_POINT;
-        }
+        level.playSound(
+                player,
+                sourcePos,
+                ModSounds.WATERSKIN_FILL.value(),
+                SoundSource.PLAYERS,
+                1.0F,
+                pitch
+        );
 
-        double neutral = (freezing + burning) / 2.0;
-        return Math.max(
-                -50.0,
-                Math.min(50.0, (world - neutral) * 15.0)
+        player.swing(hand);
+    }
+
+    private static double getFillTemperatureCelsius(Player player)
+    {
+        /*
+         * Fabric currently has no arbitrary-position equivalent of upstream's
+         * WorldHelper.getTemperatureAt without pulling its NeoForge-only graph
+         * back into the source set. A Waterskin can only fill within ordinary
+         * interaction reach, so the already-synchronized effective WORLD value
+         * is the authoritative local proxy until M9 introduces the dedicated
+         * position climate service.
+         */
+        return Temperature.convert(
+                Temperature.get(
+                        player,
+                        Temperature.Trait.WORLD
+                ),
+                Temperature.Units.MC,
+                Temperature.Units.C,
+                true
         );
     }
 }

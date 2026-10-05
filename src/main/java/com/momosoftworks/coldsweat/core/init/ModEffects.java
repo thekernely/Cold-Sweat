@@ -4,6 +4,7 @@ import com.momosoftworks.coldsweat.common.effect.FrigidnessEffect;
 import com.momosoftworks.coldsweat.common.effect.GraceEffect;
 import com.momosoftworks.coldsweat.common.effect.IceResistanceEffect;
 import com.momosoftworks.coldsweat.common.effect.ThirstEffect;
+import com.momosoftworks.coldsweat.common.effect.WarmingEffect;
 import com.momosoftworks.coldsweat.common.effect.WarmthEffect;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
 import net.minecraft.core.Holder;
@@ -15,6 +16,7 @@ public final class ModEffects
 {
     public static final Holder<MobEffect> FRIGIDNESS = register("frigidness", new FrigidnessEffect());
     public static final Holder<MobEffect> WARMTH = register("warmth", new WarmthEffect());
+    public static final Holder<MobEffect> WARMING = register("warming", new WarmingEffect());
     public static final Holder<MobEffect> GRACE = register("grace", new GraceEffect());
     public static final Holder<MobEffect> ICE_RESISTANCE = register("ice_resistance", new IceResistanceEffect());
     public static final Holder<MobEffect> THIRST = register("thirst", new ThirstEffect());

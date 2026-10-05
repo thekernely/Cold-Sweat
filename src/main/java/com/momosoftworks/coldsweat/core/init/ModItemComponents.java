@@ -32,11 +32,25 @@ public final class ModItemComponents
                     .build()
     );
 
+    /**
+     * Stored Waterskin water temperature in Celsius on the Fabric port.
+     *
+     * M8.10b deliberately makes this a persistent fill/heating state rather
+     * than a continuously neutralizing inventory temperature.
+     */
     public static final DataComponentType<Double> WATER_TEMPERATURE = register(
             "temperature",
             DataComponentType.<Double>builder()
                     .persistent(Codec.DOUBLE)
                     .networkSynchronized(ByteBufCodecs.DOUBLE)
+                    .build()
+    );
+
+    public static final DataComponentType<Boolean> WATERSKIN_PURIFIED = register(
+            "waterskin_purified",
+            DataComponentType.<Boolean>builder()
+                    .persistent(Codec.BOOL)
+                    .networkSynchronized(ByteBufCodecs.BOOL)
                     .build()
     );
 

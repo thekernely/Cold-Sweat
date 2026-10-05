@@ -3,42 +3,50 @@ package com.momosoftworks.coldsweat.api.registry;
 import com.momosoftworks.coldsweat.api.temperature.modifier.FoodTempModifier;
 import com.momosoftworks.coldsweat.api.temperature.modifier.SoulSproutTempModifier;
 import com.momosoftworks.coldsweat.api.temperature.modifier.TempModifier;
-import com.momosoftworks.coldsweat.api.temperature.modifier.WaterTempModifier;
-import com.momosoftworks.coldsweat.api.temperature.modifier.WaterskinTempModifier;
 import com.momosoftworks.coldsweat.api.util.Temperature;
 import com.momosoftworks.coldsweat.common.capability.temperature.TemperatureModifierRuntime;
-import com.momosoftworks.coldsweat.core.init.ModItemComponents;
+import com.momosoftworks.coldsweat.common.capability.temperature.TemperatureRuntime;
+import com.momosoftworks.coldsweat.core.init.ModEffects;
 import com.momosoftworks.coldsweat.core.init.ModItems;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.WeakHashMap;
 
 /**
  * Loader-independent boundary for temperature-affecting items.
  *
- * Upstream fills this data through FoodData/ItemTempData/ConfigSettings. Pulling
- * that full requirement/value-getter graph forward would couple M5 to the later
- * general config port, so Fabric keeps the built-in defaults here. The registry
- * can later be populated by the full config loader without changing gameplay.
+ * M8.10b narrows Waterskins to an explicit one-use thermal drink. Carrying a
+ * filled Waterskin no longer changes CORE and stored water no longer decays in
+ * inventory. Warm/Very Warm drinks instead apply one visible, non-stacking
+ * Warming effect whose heat is fed gradually into the existing CORE runtime.
  */
 public final class ItemTemperatureRegistry
 {
+    public static final double WARM_WATER_THRESHOLD_C = 27.5;
+    public static final double VERY_WARM_WATER_THRESHOLD_C = 40.0;
+    public static final double HEATED_WATERSKIN_C = 50.0;
+
+    public static final int WARM_WATERSKIN_DURATION_TICKS = 20 * 20;
+    public static final int VERY_WARM_WATERSKIN_DURATION_TICKS = 30 * 20;
+
+    private static final double WARM_WATERSKIN_TOTAL_C = 0.35;
+    private static final double VERY_WARM_WATERSKIN_TOTAL_C = 0.80;
+    private static final double WARM_WATERSKIN_CORE_CAP_C = 35.7;
+    private static final double VERY_WARM_WATERSKIN_CORE_CAP_C = 36.0;
+
     private static final Map<Item, List<FoodTemperature>> FOOD_TEMPERATURES =
             new IdentityHashMap<>();
-
-    private static final Map<LivingEntity, List<WaterskinTempModifier>> ACTIVE_WATERSKIN_EFFECTS =
-            new WeakHashMap<>();
 
     private static boolean initialized;
 
@@ -139,197 +147,169 @@ public final class ItemTemperatureRegistry
     }
 
     /**
-     * Upstream waterskins apply their consumed temperature gradually to CORE
-     * for 100 ticks rather than changing body temperature instantaneously.
+     * Apply the player-facing Warming state for a consumed Waterskin.
+     *
+     * Cold water intentionally has no thermal effect. Warm is Warming I and
+     * Very Warm is Warming II. A weaker drink never downgrades a stronger
+     * active effect; equal/stronger drinks refresh/replace through vanilla's
+     * normal MobEffectInstance semantics.
      */
     public static void applyWaterskinDrink(
             LivingEntity entity,
-            double waterTemperature
+            double waterCelsius
     )
     {
-        if (Double.compare(waterTemperature, 0.0) == 0)
+        int amplifier;
+        int duration;
+        double capCelsius;
+
+        if (waterCelsius >= VERY_WARM_WATER_THRESHOLD_C)
+        {
+            amplifier = 1;
+            duration = VERY_WARM_WATERSKIN_DURATION_TICKS;
+            capCelsius = VERY_WARM_WATERSKIN_CORE_CAP_C;
+        }
+        else if (waterCelsius >= WARM_WATER_THRESHOLD_C)
+        {
+            amplifier = 0;
+            duration = WARM_WATERSKIN_DURATION_TICKS;
+            capCelsius = WARM_WATERSKIN_CORE_CAP_C;
+        }
+        else
         {
             return;
         }
 
-        WaterskinTempModifier modifier =
-                new WaterskinTempModifier(waterTemperature / 100.0)
-                        .expires(100);
+        double currentCoreCelsius =
+                TemperatureRuntime.bodyStressToCelsius(
+                        Temperature.get(
+                                entity,
+                                Temperature.Trait.CORE
+                        )
+                );
 
-        modifier.onAdded(entity, Temperature.Trait.CORE);
-        ACTIVE_WATERSKIN_EFFECTS
-                .computeIfAbsent(entity, ignored -> new ArrayList<>())
-                .add(modifier);
-    }
-
-    /**
-     * Crouch-pouring a waterskin replaces the player's current WaterTempModifier
-     * with a small hot/cold wetness seed, matching upstream's sign behavior.
-     */
-    public static void applyWaterskinPour(
-            Player player,
-            double waterTemperature
-    )
-    {
-        List<TempModifier> worldModifiers =
-                TemperatureModifierRuntime.getWorldModifiers(player);
-
-        if (worldModifiers.isEmpty())
+        /*
+         * No pre-buffing: once the body is already above this Waterskin's
+         * recovery ceiling, the drink still hydrates but creates no stored
+         * warming state that could activate later.
+         */
+        if (currentCoreCelsius >= capCelsius)
         {
             return;
         }
 
-        double sign = waterTemperature < 0.0 ? -1.0 : 1.0;
-        WaterTempModifier replacement =
-                new WaterTempModifier(0.05 * sign).tickRate(5);
+        MobEffectInstance current =
+                entity.getEffect(ModEffects.WARMING);
 
-        for (int i = 0; i < worldModifiers.size(); i++)
+        if (current != null
+                && current.getAmplifier() > amplifier)
         {
-            TempModifier modifier = worldModifiers.get(i);
-            if (modifier instanceof WaterTempModifier)
-            {
-                modifier.onRemoved(player, Temperature.Trait.WORLD);
-                replacement.onAdded(player, Temperature.Trait.WORLD);
-                worldModifiers.set(i, replacement);
-                return;
-            }
+            return;
         }
 
-        replacement.onAdded(player, Temperature.Trait.WORLD);
-        worldModifiers.add(replacement);
+        entity.addEffect(
+                new MobEffectInstance(
+                        ModEffects.WARMING,
+                        duration,
+                        amplifier,
+                        false,
+                        false,
+                        true
+                )
+        );
     }
 
     private static void tickServer(net.minecraft.server.MinecraftServer server)
     {
         for (ServerPlayer player : server.getPlayerList().getPlayers())
         {
-            tickInventoryTemperatures(player);
-            tickWaterskinEffects(player);
+            tickWaterskinWarming(player);
         }
-
-        ACTIVE_WATERSKIN_EFFECTS.keySet().removeIf(
-                entity -> entity == null || entity.isRemoved()
-        );
     }
 
     /**
-     * Upstream built-in ItemTempData for filled waterskins:
-     * - +/-0.025 CORE per tick while in hand/hotbar
-     * - active only while water temperature is outside +/-0.1
-     * - water neutralizes by 0.1 every five ticks while actively carried
+     * Feed the visible Warming state into the existing normalized CORE model.
+     * The environment continues to act on CORE at the same time, so clothing
+     * and shelter determine how much of this emergency heat the player keeps.
      */
-    private static void tickInventoryTemperatures(ServerPlayer player)
+    private static void tickWaterskinWarming(ServerPlayer player)
     {
-        double coreEffect = 0.0;
-        IdentityHashMap<ItemStack, Boolean> visited = new IdentityHashMap<>();
+        MobEffectInstance warming =
+                player.getEffect(ModEffects.WARMING);
 
-        for (int slot = 0; slot < 9; slot++)
-        {
-            ItemStack stack = player.getInventory().getItem(slot);
-            if (!stack.isEmpty() && visited.put(stack, Boolean.TRUE) == null)
-            {
-                coreEffect += getWaterskinInventoryEffect(player, stack);
-            }
-        }
-
-        ItemStack offhand = player.getOffhandItem();
-        if (!offhand.isEmpty() && visited.put(offhand, Boolean.TRUE) == null)
-        {
-            coreEffect += getWaterskinInventoryEffect(player, offhand);
-        }
-
-        if (Double.compare(coreEffect, 0.0) != 0)
-        {
-            Temperature.add(
-                    player,
-                    Temperature.Trait.CORE,
-                    coreEffect
-            );
-        }
-    }
-
-    private static double getWaterskinInventoryEffect(
-            ServerPlayer player,
-            ItemStack stack
-    )
-    {
-        if (!stack.is(ModItems.FILLED_WATERSKIN))
-        {
-            return 0.0;
-        }
-
-        double temperature = stack.getOrDefault(
-                ModItemComponents.WATER_TEMPERATURE,
-                0.0
-        );
-
-        double effect = temperature > 0.1
-                ? 0.025
-                : temperature < -0.1
-                    ? -0.025
-                    : 0.0;
-
-        if (effect != 0.0 && player.tickCount % 5 == 0)
-        {
-            stack.set(
-                    ModItemComponents.WATER_TEMPERATURE,
-                    shrinkTowardZero(temperature, 0.1)
-            );
-        }
-
-        return effect * stack.getCount();
-    }
-
-    private static void tickWaterskinEffects(LivingEntity entity)
-    {
-        List<WaterskinTempModifier> modifiers =
-                ACTIVE_WATERSKIN_EFFECTS.get(entity);
-
-        if (modifiers == null)
+        if (warming == null)
         {
             return;
         }
 
-        for (int i = 0; i < modifiers.size(); i++)
+        boolean veryWarm = warming.getAmplifier() >= 1;
+        int fullDuration = veryWarm
+                ? VERY_WARM_WATERSKIN_DURATION_TICKS
+                : WARM_WATERSKIN_DURATION_TICKS;
+
+        double capCelsius = veryWarm
+                ? VERY_WARM_WATERSKIN_CORE_CAP_C
+                : WARM_WATERSKIN_CORE_CAP_C;
+
+        double totalCelsius = veryWarm
+                ? VERY_WARM_WATERSKIN_TOTAL_C
+                : WARM_WATERSKIN_TOTAL_C;
+
+        double coreStress =
+                Temperature.get(
+                        player,
+                        Temperature.Trait.CORE
+                );
+
+        double coreCelsius =
+                TemperatureRuntime.bodyStressToCelsius(
+                        coreStress
+                );
+
+        if (coreCelsius >= capCelsius)
         {
-            WaterskinTempModifier modifier = modifiers.get(i);
+            player.removeEffect(ModEffects.WARMING);
+            return;
+        }
 
-            if (modifier.getTicksExisted() % modifier.getTickRate() == 0)
-            {
-                modifier.tick(entity);
-            }
+        double deltaCelsius =
+                totalCelsius / fullDuration;
 
-            double delta = modifier.update(
-                    0.0,
-                    entity,
-                    Temperature.Trait.CORE
+        double nextCelsius =
+                Math.min(
+                        capCelsius,
+                        coreCelsius + deltaCelsius
+                );
+
+        Temperature.set(
+                player,
+                Temperature.Trait.CORE,
+                TemperatureRuntime.celsiusToBodyStress(
+                        nextCelsius
+                )
+        );
+
+        /*
+         * Immediate feedback only: a few tiny warm sparks during roughly the
+         * first second after drinking/refreshing. The effect itself has no
+         * vanilla potion particles, so this never turns into a 30-second swirl.
+         */
+        if (warming.getDuration() > fullDuration - 20
+                && player.tickCount % 4 == 0)
+        {
+            ServerLevel serverLevel = (ServerLevel) player.level();
+            serverLevel.sendParticles(
+                    ParticleTypes.SMALL_FLAME,
+                    player.getX(),
+                    player.getY() + player.getBbHeight() * 0.55,
+                    player.getZ(),
+                    1,
+                    0.18,
+                    0.20,
+                    0.18,
+                    0.01
             );
-
-            if (!Double.isNaN(delta) && Double.compare(delta, 0.0) != 0)
-            {
-                Temperature.add(entity, Temperature.Trait.CORE, delta);
-            }
-
-            modifier.setTicksExisted(modifier.getTicksExisted() + 1);
-            int expireTime = modifier.getExpireTime();
-            if (expireTime != -1
-                    && modifier.getTicksExisted() > expireTime)
-            {
-                modifier.onRemoved(entity, Temperature.Trait.CORE);
-                modifiers.remove(i);
-                i--;
-            }
         }
-
-        if (modifiers.isEmpty())
-        {
-            ACTIVE_WATERSKIN_EFFECTS.remove(entity);
-        }
-    }
-
-    private static double shrinkTowardZero(double value, double amount)
-    {
-        return Math.max(0.0, Math.abs(value) - amount) * Math.signum(value);
     }
 
     public static void initialize()
@@ -343,7 +323,7 @@ public final class ItemTemperatureRegistry
         ServerTickEvents.END_SERVER_TICK.register(ItemTemperatureRegistry::tickServer);
 
         ColdSweatFabric.LOGGER.info(
-                "Initialized {} temperature-affecting consumable definition(s) and waterskin item runtime.",
+                "Initialized {} temperature-affecting consumable definition(s) and Waterskin warming runtime.",
                 FOOD_TEMPERATURES.values().stream().mapToInt(List::size).sum()
         );
     }

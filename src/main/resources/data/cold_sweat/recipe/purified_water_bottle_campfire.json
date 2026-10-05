@@ -4,6 +4,7 @@
   "experience": 0.05,
   "ingredient": [
     "minecraft:potion",
+    "cold_sweat:filled_waterskin",
     "cold_sweat:leather_flask",
     "cold_sweat:copper_flask",
     "cold_sweat:iron_flask",
