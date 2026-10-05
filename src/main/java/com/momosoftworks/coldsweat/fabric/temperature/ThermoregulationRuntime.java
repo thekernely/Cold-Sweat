@@ -2,11 +2,13 @@ package com.momosoftworks.coldsweat.fabric.temperature;
 
 import com.momosoftworks.coldsweat.api.temperature.modifier.TempModifier;
 import com.momosoftworks.coldsweat.api.temperature.modifier.WaterTempModifier;
+import com.momosoftworks.coldsweat.api.util.Hydration;
 import com.momosoftworks.coldsweat.api.util.Temperature;
 import com.momosoftworks.coldsweat.common.capability.handler.EntityTempManager;
 import com.momosoftworks.coldsweat.common.capability.temperature.TemperatureModifierRuntime;
 import com.momosoftworks.coldsweat.common.capability.temperature.TemperatureRuntime;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -340,8 +342,18 @@ public final class ThermoregulationRuntime
         double heatDemand =
                 hot ? demand : 0.0;
 
+        /*
+         * M8.8 hydration coupling:
+         * dehydration primarily impairs heat shedding, not cold
+         * thermogenesis. At >=5 hydration capacity is unchanged. From
+         * 5 -> 0 it falls smoothly from 100% -> 40%.
+         */
         double capacity =
-                BASELINE_REGULATION_CAPACITY;
+                BASELINE_REGULATION_CAPACITY
+                        * hydrationHeatRegulationFactor(
+                                entity,
+                                hot
+                        );
 
         double regulatoryLoad =
                 capacity > 0.0
@@ -621,6 +633,38 @@ public final class ThermoregulationRuntime
         return surfaceState.powderSnowContact()
                 && !surfaceState.acutePowderSnowRescue()
                 && surfaceState.environmentCelsius() > coreCelsius;
+    }
+
+    private static double hydrationHeatRegulationFactor(
+            LivingEntity entity,
+            boolean hot
+    )
+    {
+        if (!hot
+                || !(entity instanceof Player player)
+                || player.isCreative()
+                || player.isSpectator())
+        {
+            return 1.0;
+        }
+
+        double hydration =
+                Math.max(
+                        0.0,
+                        Math.min(
+                                5.0,
+                                Hydration.get(player)
+                        )
+                );
+
+        if (hydration >= 5.0)
+        {
+            return 1.0;
+        }
+
+        return 0.40
+                + 0.60
+                * (hydration / 5.0);
     }
 
     private static double clamp01(double value)

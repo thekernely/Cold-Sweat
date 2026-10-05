@@ -103,6 +103,8 @@
   "death.attack.cold_sweat:cold.player":   "%1$s froze to death whilst fighting %2$s",
   "death.attack.cold_sweat:hot":           "%1$s died of heatstroke",
   "death.attack.cold_sweat:hot.player":    "%1$s died of heatstroke whilst fighting %2$s",
+  "death.attack.cold_sweat:dehydration":       "%1$s died of dehydration",
+  "death.attack.cold_sweat:dehydration.player":"%1$s died of dehydration whilst fighting %2$s",
 
 
   "entity.player.damage.freeze":   "Player freezes",

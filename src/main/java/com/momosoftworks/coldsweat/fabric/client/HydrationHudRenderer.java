@@ -215,14 +215,16 @@ public final class HydrationHudRenderer
                     getJitterX(
                             player.tickCount,
                             slot,
-                            thirst
+                            thirst,
+                            hydration
                     );
 
             int jitterY =
                     getJitterY(
                             player.tickCount,
                             slot,
-                            thirst
+                            thirst,
+                            hydration
                     );
 
             drawDroplet(
@@ -527,11 +529,24 @@ public final class HydrationHudRenderer
     private static int getJitterX(
             int tick,
             int slot,
-            boolean thirst
+            boolean thirst,
+            double hydration
     )
     {
         if (tick < thirstPulseUntilTick
                 && (tick + slot) % 4 == 0)
+        {
+            return (slot & 1) == 0
+                    ? -1
+                    : 1;
+        }
+
+        if (hydration <= 4.0
+                && dehydrationPulseActive(
+                        tick,
+                        hydration
+                )
+                && (tick + slot) % 3 == 0)
         {
             return (slot & 1) == 0
                     ? -1
@@ -544,7 +559,8 @@ public final class HydrationHudRenderer
     private static int getJitterY(
             int tick,
             int slot,
-            boolean thirst
+            boolean thirst,
+            double hydration
     )
     {
         if (tick < thirstPulseUntilTick)
@@ -562,10 +578,21 @@ public final class HydrationHudRenderer
                     : 0;
         }
 
-        /*
-         * While Thirst remains active, keep a sparse one-pixel twitch rather
-         * than continuously vibrating the entire HUD.
-         */
+        if (dehydrationPulseActive(
+                tick,
+                hydration
+        ))
+        {
+            if (hydration <= 2.0)
+            {
+                return ((tick + slot * 2) % 3) - 1;
+            }
+
+            return (tick + slot) % 2 == 0
+                    ? 1
+                    : 0;
+        }
+
         if (thirst
                 && (tick + slot * 3) % 7 == 0)
         {
@@ -573,6 +600,37 @@ public final class HydrationHudRenderer
         }
 
         return 0;
+    }
+
+    private static boolean dehydrationPulseActive(
+            int tick,
+            double hydration
+    )
+    {
+        if (hydration > 7.0)
+        {
+            return false;
+        }
+
+        int period;
+
+        if (hydration <= 2.0)
+        {
+            period = 40;
+        }
+        else if (hydration <= 4.0)
+        {
+            period = 60;
+        }
+        else
+        {
+            period = 100;
+        }
+
+        return Math.floorMod(
+                tick,
+                period
+        ) < 6;
     }
 
     private static boolean isShapePixel(

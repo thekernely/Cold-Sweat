@@ -17,6 +17,9 @@ public final class ModDamageSources
     public static final ResourceKey<DamageType> HOT =
             register("hot");
 
+    public static final ResourceKey<DamageType> DEHYDRATION =
+            register("dehydration");
+
     public static boolean isFreezing(DamageSource damageSource)
     {
         return damageSource.is(COLD);
