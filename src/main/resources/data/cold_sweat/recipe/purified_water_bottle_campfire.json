@@ -1,0 +1,9 @@
+{
+  "type": "cold_sweat:purified_water_bottle_campfire",
+  "cookingtime": 100,
+  "experience": 0.05,
+  "ingredient": "minecraft:potion",
+  "result": {
+    "id": "cold_sweat:purified_water_bottle"
+  }
+}

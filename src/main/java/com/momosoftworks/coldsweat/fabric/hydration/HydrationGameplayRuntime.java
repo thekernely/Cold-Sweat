@@ -4,19 +4,26 @@ import com.momosoftworks.coldsweat.api.util.Hydration;
 import com.momosoftworks.coldsweat.common.capability.handler.PlayerHydrationManager;
 import com.momosoftworks.coldsweat.common.capability.hydration.HydrationData;
 import com.momosoftworks.coldsweat.core.init.ModEffects;
+import com.momosoftworks.coldsweat.core.init.ModItems;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.stats.Stats;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.alchemy.PotionContents;
+import net.minecraft.world.item.alchemy.Potions;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FluidState;
@@ -34,6 +41,8 @@ import java.util.UUID;
  * - each sip has a 40% contamination chance
  * - contamination applies/refreshed a 7-second Thirst effect
  * - Thirst feeds the normal hydration exhaustion pipeline
+ * - vanilla water bottles are raw water (+2, contamination risk)
+ * - purified water bottles restore +3 with no contamination roll
  *
  * This slice intentionally does not add baseline walking/sprinting/heat water
  * costs yet. Those resource couplings belong to M8.8.
@@ -46,6 +55,7 @@ import java.util.UUID;
 public final class HydrationGameplayRuntime
 {
     public static final double RAW_WATER_HYDRATION = 2.0;
+    public static final double PURIFIED_WATER_HYDRATION = 3.0;
 
     public static final double EXHAUSTION_THRESHOLD = 4.0;
     public static final double THIRST_EXHAUSTION_PER_TICK = 0.12;
@@ -67,6 +77,23 @@ public final class HydrationGameplayRuntime
 
     private static final Map<UUID, Long> LAST_DIRECT_DRINK_TICK =
             new HashMap<>();
+
+    /*
+     * 26.2 no longer exposes vanilla potion completion through an override on
+     * PotionItem, so do not mix into PotionItem at all. Instead, remember that
+     * a vanilla WATER potion started being used and watch the authoritative
+     * vanilla ITEM_USED stat. That stat increments only when the drink really
+     * finishes, so cancelling the animation cannot grant hydration.
+     */
+    private static final Map<UUID, PendingWaterBottleUse> PENDING_WATER_BOTTLES =
+            new HashMap<>();
+
+    private record PendingWaterBottleUse(
+            int initialPotionUses,
+            long startedAtTick
+    )
+    {
+    }
 
     private HydrationGameplayRuntime()
     {
@@ -91,11 +118,25 @@ public final class HydrationGameplayRuntime
                 HydrationGameplayRuntime::tryDirectWaterDrink
         );
 
+        /*
+         * Vanilla water bottles remain completely vanilla items. This callback
+         * prevents use at 20/20 and records the starting ITEM_USED stat. The
+         * server tick below applies raw-water hydration only after vanilla
+         * confirms that the potion was actually consumed.
+         */
+        UseItemCallback.EVENT.register(
+                HydrationGameplayRuntime::guardWaterBottleUse
+        );
+
+        WaterPurificationRecipes.initialize();
+
         ServerTickEvents.END_SERVER_TICK.register(server ->
         {
             for (ServerPlayer player :
                     server.getPlayerList().getPlayers())
             {
+                tickPendingWaterBottleUse(player);
+
                 if (player.tickCount
                         % EXHAUSTION_UPDATE_INTERVAL
                         == 0)
@@ -182,20 +223,145 @@ public final class HydrationGameplayRuntime
                 gameTime
         );
 
-        Hydration.add(
-                serverPlayer,
-                RAW_WATER_HYDRATION
-        );
-
-        if (serverPlayer.getRandom().nextFloat()
-                < RAW_WATER_CONTAMINATION_CHANCE)
-        {
-            applyContamination(serverPlayer);
-        }
+        consumeRawWater(serverPlayer);
 
         serverPlayer.swing(hand);
 
         return InteractionResult.SUCCESS;
+    }
+
+    private static InteractionResult guardWaterBottleUse(
+            Player player,
+            Level level,
+            InteractionHand hand
+    )
+    {
+        ItemStack stack =
+                player.getItemInHand(hand);
+
+        if (!isVanillaWaterBottle(stack)
+                && !stack.is(ModItems.PURIFIED_WATER_BOTTLE))
+        {
+            return InteractionResult.PASS;
+        }
+
+        if (Hydration.get(player)
+                >= Hydration.MAX_HYDRATION - 1.0e-6)
+        {
+            return InteractionResult.FAIL;
+        }
+
+        if (!level.isClientSide()
+                && isVanillaWaterBottle(stack)
+                && player instanceof ServerPlayer serverPlayer)
+        {
+            int potionUses =
+                    serverPlayer.getStats().getValue(
+                            Stats.ITEM_USED.get(
+                                    Items.POTION
+                            )
+                    );
+
+            PENDING_WATER_BOTTLES.put(
+                    serverPlayer.getUUID(),
+                    new PendingWaterBottleUse(
+                            potionUses,
+                            level.getGameTime()
+                    )
+            );
+        }
+
+        return InteractionResult.PASS;
+    }
+
+    public static boolean isVanillaWaterBottle(
+            ItemStack stack
+    )
+    {
+        if (!stack.is(Items.POTION))
+        {
+            return false;
+        }
+
+        PotionContents contents =
+                stack.getOrDefault(
+                        DataComponents.POTION_CONTENTS,
+                        PotionContents.EMPTY
+                );
+
+        return contents.is(Potions.WATER);
+    }
+
+    private static void tickPendingWaterBottleUse(
+            ServerPlayer player
+    )
+    {
+        PendingWaterBottleUse pending =
+                PENDING_WATER_BOTTLES.get(
+                        player.getUUID()
+                );
+
+        if (pending == null)
+        {
+            return;
+        }
+
+        int potionUses =
+                player.getStats().getValue(
+                        Stats.ITEM_USED.get(
+                                Items.POTION
+                        )
+                );
+
+        if (potionUses > pending.initialPotionUses())
+        {
+            PENDING_WATER_BOTTLES.remove(
+                    player.getUUID()
+            );
+
+            consumeRawWater(player);
+            return;
+        }
+
+        /*
+         * Give vanilla a couple of ticks to transition into its using-item
+         * state. After that, stopping use without a stat increment means the
+         * drink was cancelled and must not grant hydration or contamination.
+         */
+        if (player.level().getGameTime()
+                > pending.startedAtTick() + 2
+                && !player.isUsingItem())
+        {
+            PENDING_WATER_BOTTLES.remove(
+                    player.getUUID()
+            );
+        }
+    }
+
+    public static void consumeRawWater(
+            ServerPlayer player
+    )
+    {
+        Hydration.add(
+                player,
+                RAW_WATER_HYDRATION
+        );
+
+        if (player.getRandom().nextFloat()
+                < RAW_WATER_CONTAMINATION_CHANCE)
+        {
+            applyContamination(player);
+        }
+    }
+
+    public static void consumePurifiedWater(
+            ServerPlayer player
+    )
+    {
+        Hydration.add(
+                player,
+                PURIFIED_WATER_HYDRATION
+        );
     }
 
     /**

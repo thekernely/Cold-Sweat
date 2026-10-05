@@ -201,6 +201,10 @@ sourceSets {
             // M5.8: first-useful-release item recipes.
             include 'data/cold_sweat/recipe/waterskin.json'
             include 'data/cold_sweat/recipe/thermometer.json'
+
+            // M8.4: vanilla raw-water bottle + purified bottle resources.
+            include 'assets/cold_sweat/items/purified_water_bottle.json'
+            include 'data/cold_sweat/recipe/purified_water_bottle_*.json'
         }
     }
 }

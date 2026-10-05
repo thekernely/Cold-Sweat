@@ -5,6 +5,7 @@ import com.momosoftworks.coldsweat.common.item.SoulSproutItem;
 import com.momosoftworks.coldsweat.common.item.ThermometerItem;
 import com.momosoftworks.coldsweat.common.item.WaterskinItem;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
+import com.momosoftworks.coldsweat.fabric.hydration.PurifiedWaterBottleItem;
 import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -63,6 +64,25 @@ public final class ModItems
             new Item.Properties()
                     .rarity(Rarity.UNCOMMON)
                     .stacksTo(1)
+    );
+
+    /*
+     * M8.4: ordinary minecraft:water_bottle remains the raw-water bottle.
+     * Purified water is the only additional bottle item because it represents
+     * a genuinely new water-quality state rather than replacing vanilla
+     * functionality.
+     */
+    public static final Item PURIFIED_WATER_BOTTLE = register(
+            "purified_water_bottle",
+            PurifiedWaterBottleItem::new,
+            new Item.Properties()
+                    .stacksTo(16)
+                    .craftRemainder(Items.GLASS_BOTTLE)
+                    .component(
+                            DataComponents.CONSUMABLE,
+                            Consumables.DEFAULT_DRINK
+                    )
+                    .usingConvertsTo(Items.GLASS_BOTTLE)
     );
 
     // M6 thermal-machine block items. Hearth intentionally maps to hearth_bottom.
@@ -205,7 +225,7 @@ public final class ModItems
 
     public static void initialize()
     {
-        ColdSweatFabric.LOGGER.info("Registering Cold Sweat material, consumable, utility, armor, thermal-machine, and Slush items.");
+        ColdSweatFabric.LOGGER.info("Registering Cold Sweat material, hydration, consumable, utility, armor, thermal-machine, and Slush items.");
     }
 
     private ModItems()

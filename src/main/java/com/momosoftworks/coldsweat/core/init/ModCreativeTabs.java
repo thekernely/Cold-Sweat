@@ -26,6 +26,7 @@ public final class ModCreativeTabs
                 output.accept(ModItems.SOUL_SPROUT);
                 output.accept(ModItems.WATERSKIN);
                 output.accept(ModItems.FILLED_WATERSKIN);
+                output.accept(ModItems.PURIFIED_WATER_BOTTLE);
                 output.accept(ModItems.THERMOMETER);
 
                 output.accept(ModItems.HOGLIN_HELMET);
