@@ -1,6 +1,7 @@
 package com.momosoftworks.coldsweat.fabric.client;
 
 import com.momosoftworks.coldsweat.api.util.Hydration;
+import com.momosoftworks.coldsweat.core.init.ModEffects;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudStatusBarHeightRegistry;
@@ -10,6 +11,8 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Player;
+
+import java.util.UUID;
 
 /**
  * M8.2 hydration HUD.
@@ -45,6 +48,24 @@ public final class HydrationHudRenderer
     private static final int WATER_LIGHT = 0xFF60BCE8;
     private static final int WATER_SHADOW = 0xFF256AAE;
     private static final int SATURATION = 0xFFB6F3FF;
+
+    /* M8.3 contaminated-water / Thirst presentation. */
+    private static final int THIRST_OUTLINE = 0xFF33421D;
+    private static final int THIRST_EMPTY_INTERIOR = 0xFF4B5C2A;
+    private static final int THIRST_WATER = 0xFF78963B;
+    private static final int THIRST_WATER_LIGHT = 0xFFA2B958;
+    private static final int THIRST_WATER_SHADOW = 0xFF566F2C;
+    private static final int THIRST_SATURATION = 0xFFD6E58B;
+
+    /*
+     * Client-only HUD feedback state. Tick deadlines keep the animation
+     * deterministic and frame-rate independent.
+     */
+    private static UUID lastPlayerId;
+    private static double lastHydration = Double.NaN;
+    private static boolean lastThirst;
+    private static int shakeUntilTick;
+    private static int thirstPulseUntilTick;
 
     /*
      * 9x9 tear-drop silhouette. '#' is part of the icon; '.' is transparent.
@@ -143,6 +164,15 @@ public final class HydrationHudRenderer
                         hydration
                 );
 
+        boolean thirst =
+                player.hasEffect(ModEffects.THIRST);
+
+        updateAnimationState(
+                player,
+                hydration,
+                thirst
+        );
+
         int centerX = graphics.guiWidth() / 2;
 
         /*
@@ -181,12 +211,27 @@ public final class HydrationHudRenderer
                             2.0
                     );
 
+            int jitterX =
+                    getJitterX(
+                            player.tickCount,
+                            slot,
+                            thirst
+                    );
+
+            int jitterY =
+                    getJitterY(
+                            player.tickCount,
+                            slot,
+                            thirst
+                    );
+
             drawDroplet(
                     graphics,
-                    x,
-                    y,
+                    x + jitterX,
+                    y + jitterY,
                     hydrationInSlot,
-                    saturationInSlot
+                    saturationInSlot,
+                    thirst
             );
         }
     }
@@ -203,7 +248,8 @@ public final class HydrationHudRenderer
             int x,
             int y,
             double hydrationPoints,
-            double saturationPoints
+            double saturationPoints,
+            boolean thirst
     )
     {
         int hydrationStage =
@@ -227,16 +273,26 @@ public final class HydrationHudRenderer
                 int color;
                 if (outline)
                 {
-                    color = OUTLINE;
+                    color =
+                            thirst
+                                    ? THIRST_OUTLINE
+                                    : OUTLINE;
                 }
                 else if (isFilledForStage(px, hydrationStage))
                 {
                     color =
-                            getWaterColor(px, py);
+                            getWaterColor(
+                                    px,
+                                    py,
+                                    thirst
+                            );
                 }
                 else
                 {
-                    color = EMPTY_INTERIOR;
+                    color =
+                            thirst
+                                    ? THIRST_EMPTY_INTERIOR
+                                    : EMPTY_INTERIOR;
                 }
 
                 drawPixel(
@@ -259,7 +315,8 @@ public final class HydrationHudRenderer
                     x,
                     y,
                     saturationStage,
-                    hydrationStage
+                    hydrationStage,
+                    thirst
             );
         }
     }
@@ -289,10 +346,11 @@ public final class HydrationHudRenderer
         if (stage == 1)
         {
             /*
-             * Like vanilla half-food icons, the half state occupies one side
-             * of the icon rather than becoming a vertically cropped puddle.
+             * Hydration drains from the bar's left edge toward the right.
+             * Therefore a half-consumed droplet keeps its RIGHT half and loses
+             * its LEFT half first.
              */
-            return px <= 4;
+            return px >= 4;
         }
 
         return false;
@@ -300,20 +358,27 @@ public final class HydrationHudRenderer
 
     private static int getWaterColor(
             int px,
-            int py
+            int py,
+            boolean thirst
     )
     {
         if (px <= 3 && py <= 4)
         {
-            return WATER_LIGHT;
+            return thirst
+                    ? THIRST_WATER_LIGHT
+                    : WATER_LIGHT;
         }
 
         if (px >= 5 || py >= 7)
         {
-            return WATER_SHADOW;
+            return thirst
+                    ? THIRST_WATER_SHADOW
+                    : WATER_SHADOW;
         }
 
-        return WATER;
+        return thirst
+                ? THIRST_WATER
+                : WATER;
     }
 
     private static void drawSaturationSheen(
@@ -321,32 +386,35 @@ public final class HydrationHudRenderer
             int x,
             int y,
             int saturationStage,
-            int hydrationStage
+            int hydrationStage,
+            boolean thirst
     )
     {
         /*
-         * These pixels sit inside the droplet silhouette. Half saturation uses
-         * only the left glint; full saturation adds the right/bottom glints.
-         * Never draw sheen where the corresponding hydration half is empty.
+         * Half saturation follows the same direction as hydration: only the
+         * surviving RIGHT half receives a sheen. Full saturation then adds
+         * the left-side highlights.
          */
         drawSheenPixel(
                 graphics,
                 x,
                 y,
-                3,
-                3,
+                5,
+                5,
                 saturationStage,
-                hydrationStage
+                hydrationStage,
+                thirst
         );
 
         drawSheenPixel(
                 graphics,
                 x,
                 y,
-                2,
-                5,
+                4,
+                6,
                 saturationStage,
-                hydrationStage
+                hydrationStage,
+                thirst
         );
 
         if (saturationStage >= 2)
@@ -355,20 +423,22 @@ public final class HydrationHudRenderer
                     graphics,
                     x,
                     y,
-                    5,
-                    5,
+                    3,
+                    3,
                     saturationStage,
-                    hydrationStage
+                    hydrationStage,
+                    thirst
             );
 
             drawSheenPixel(
                     graphics,
                     x,
                     y,
-                    4,
-                    6,
+                    2,
+                    5,
                     saturationStage,
-                    hydrationStage
+                    hydrationStage,
+                    thirst
             );
         }
     }
@@ -380,7 +450,8 @@ public final class HydrationHudRenderer
             int px,
             int py,
             int saturationStage,
-            int hydrationStage
+            int hydrationStage,
+            boolean thirst
     )
     {
         if (saturationStage <= 0
@@ -395,8 +466,113 @@ public final class HydrationHudRenderer
                 graphics,
                 x + px,
                 y + py,
-                SATURATION
+                thirst
+                        ? THIRST_SATURATION
+                        : SATURATION
         );
+    }
+
+    private static void updateAnimationState(
+            LocalPlayer player,
+            double hydration,
+            boolean thirst
+    )
+    {
+        UUID playerId =
+                player.getUUID();
+
+        if (!playerId.equals(lastPlayerId))
+        {
+            lastPlayerId = playerId;
+            lastHydration = hydration;
+            lastThirst = thirst;
+            shakeUntilTick = 0;
+            thirstPulseUntilTick = 0;
+            return;
+        }
+
+        int tick =
+                player.tickCount;
+
+        if (!Double.isNaN(lastHydration)
+                && hydration < lastHydration - 1.0e-6)
+        {
+            /*
+             * Short hunger-like shudder whenever hydration actually drops.
+             */
+            shakeUntilTick =
+                    Math.max(
+                            shakeUntilTick,
+                            tick + 8
+                    );
+        }
+
+        if (thirst && !lastThirst)
+        {
+            /*
+             * Applying Thirst deserves a more visible initial shudder, then
+             * settles into the subtler sickly-state jitter below.
+             */
+            thirstPulseUntilTick =
+                    Math.max(
+                            thirstPulseUntilTick,
+                            tick + 14
+                    );
+        }
+
+        lastHydration = hydration;
+        lastThirst = thirst;
+    }
+
+    private static int getJitterX(
+            int tick,
+            int slot,
+            boolean thirst
+    )
+    {
+        if (tick < thirstPulseUntilTick
+                && (tick + slot) % 4 == 0)
+        {
+            return (slot & 1) == 0
+                    ? -1
+                    : 1;
+        }
+
+        return 0;
+    }
+
+    private static int getJitterY(
+            int tick,
+            int slot,
+            boolean thirst
+    )
+    {
+        if (tick < thirstPulseUntilTick)
+        {
+            int phase =
+                    (tick + slot * 2) % 3;
+
+            return phase - 1;
+        }
+
+        if (tick < shakeUntilTick)
+        {
+            return (tick + slot) % 2 == 0
+                    ? 1
+                    : 0;
+        }
+
+        /*
+         * While Thirst remains active, keep a sparse one-pixel twitch rather
+         * than continuously vibrating the entire HUD.
+         */
+        if (thirst
+                && (tick + slot * 3) % 7 == 0)
+        {
+            return 1;
+        }
+
+        return 0;
     }
 
     private static boolean isShapePixel(

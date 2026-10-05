@@ -5,6 +5,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -38,6 +39,15 @@ public final class EnvironmentSnapshotScanner
 
     private static final double RAY_STEPS_PER_BLOCK = 2.0;
     private static final double OPAQUE_RADIATION_TRANSMISSION = 0.20;
+
+    /*
+     * A single bridge/floor block directly over lava blocks line-of-sight
+     * radiation, but it does not make standing over a lava pool thermally
+     * equivalent to standing on ordinary ground. This close vertical case
+     * approximates conduction + hot convection through/around the floor while
+     * ordinary walls still use the normal 20% opaque transmission.
+     */
+    private static final double LAVA_UNDERFOOT_TRANSMISSION = 0.75;
 
     private static final int ROOM_CELL_CAP = 8192;
 
@@ -227,8 +237,21 @@ public final class EnvironmentSnapshotScanner
                             cursor
                     ))
                     {
-                        radiation *=
+                        double transmission =
                                 OPAQUE_RADIATION_TRANSMISSION;
+
+                        if (state.is(Blocks.LAVA)
+                                && isCloseLavaUnderfoot(
+                                        entityCenter,
+                                        blockCenter,
+                                        distance
+                                ))
+                        {
+                            transmission =
+                                    LAVA_UNDERFOOT_TRANSMISSION;
+                        }
+
+                        radiation *= transmission;
                     }
 
                     radiantSourceBlocks++;
@@ -561,6 +584,29 @@ public final class EnvironmentSnapshotScanner
 
         cache.put(key, chunk);
         return chunk;
+    }
+
+    private static boolean isCloseLavaUnderfoot(
+            Vec3 entityCenter,
+            Vec3 sourceCenter,
+            double distance
+    )
+    {
+        if (sourceCenter.y >= entityCenter.y
+                || distance > 2.5)
+        {
+            return false;
+        }
+
+        double dx =
+                entityCenter.x - sourceCenter.x;
+        double dz =
+                entityCenter.z - sourceCenter.z;
+
+        double horizontalDistanceSquared =
+                dx * dx + dz * dz;
+
+        return horizontalDistanceSquared <= 1.0;
     }
 
     private static boolean isObscured(

@@ -24,6 +24,7 @@ import com.momosoftworks.coldsweat.core.init.ModParticleTypes;
 import com.momosoftworks.coldsweat.core.init.ModPotions;
 import com.momosoftworks.coldsweat.core.init.ModSounds;
 import com.momosoftworks.coldsweat.core.init.TempModifierInit;
+import com.momosoftworks.coldsweat.fabric.hydration.HydrationGameplayRuntime;
 import com.momosoftworks.coldsweat.util.registries.ModGameRules;
 import net.fabricmc.api.ModInitializer;
 import net.minecraft.resources.Identifier;
@@ -64,6 +65,7 @@ public final class ColdSweatFabric implements ModInitializer
         ModDataAttachments.initialize();
         EntityTempManager.initialize();
         PlayerHydrationManager.initialize();
+        HydrationGameplayRuntime.initialize();
         TempModifierInit.initialize();
         BlockTempInit.initialize();
         MachineBlockTempInit.initialize();

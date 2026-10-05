@@ -33,7 +33,14 @@ public final class RadiantHeatRegistry
     {
         register(Blocks.CAMPFIRE, 5550.0, 35.0, false, false, RadiantHeatRegistry::lit);
         register(Blocks.BLAST_FURNACE, 1800.0, 30.0, false, false, RadiantHeatRegistry::lit);
-        register(Blocks.LAVA, 7000.0, 60.0, true, true, state -> true);
+        /*
+         * M7.15: close open lava is an acute radiant hazard, not a warm room
+         * ornament. The old 7000 W-equivalent calibration only moved apparent
+         * temperature a few degrees at normal standing distance. 40000 keeps
+         * medium-range falloff intact while allowing immediate lava proximity
+         * to reach genuinely dangerous apparent temperatures.
+         */
+        register(Blocks.LAVA, 40000.0, 60.0, true, true, state -> true);
         register(Blocks.LAVA_CAULDRON, 4000.0, 45.0, false, false, state -> true);
         register(Blocks.FIRE, 1300.0, 25.0, false, false, state -> true);
         register(Blocks.FURNACE, 1300.0, 12.0, false, false, RadiantHeatRegistry::litFurnace);
