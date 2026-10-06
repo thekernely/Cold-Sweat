@@ -3,9 +3,12 @@ package com.momosoftworks.coldsweat.fabric.season;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.biome.Biome;
 
 import java.lang.reflect.Method;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.WeakHashMap;
@@ -14,23 +17,30 @@ import java.util.WeakHashMap;
  * Optional Ecliptic Seasons bridge.
  *
  * <p>This class deliberately contains all references to Ecliptic's class names
- * so the rest of Cold Sweat can depend only on {@link SeasonContext}. If
+ * so the rest of Cold Sweat can depend only on this loader-safe boundary. If
  * Ecliptic is absent, Cold Sweat keeps its existing behavior unchanged.
  *
- * <p>M9.1 is observation-only. This service does not modify world, player,
- * biome, or body temperatures.
+ * <p>M9.1 introduced observation-only season metadata. M9.2a added Ecliptic's
+ * resolved per-biome seasonal temperature delta. M9.2b additionally exposes a
+ * normalized cold-season intensity so Cold Sweat can translate Ecliptic's
+ * climate signal into biome-relative winter envelopes without copying
+ * Ecliptic's solar-term table or assuming a raw value is Celsius.
  */
 public final class SeasonContextService
 {
     private static final String ECLIPTIC_MOD_ID = "eclipticseasons";
     private static final long CACHE_TTL_NANOS = 1_000_000_000L;
+    private static final long DAY_LENGTH_TICKS = 24_000L;
 
     private static final Map<Level, CachedContext> CACHE = new WeakHashMap<>();
     private static final Map<Level, String> LAST_LOGGED_CONTEXT = new WeakHashMap<>();
+    private static final Map<Level, Map<Biome, CachedClimateSample>> CLIMATE_CACHE =
+            new WeakHashMap<>();
 
     private static volatile Adapter adapter = NoopAdapter.INSTANCE;
     private static volatile boolean initialized;
     private static volatile boolean readFailureLogged;
+    private static volatile boolean climateFailureLogged;
 
     private SeasonContextService()
     {
@@ -126,6 +136,88 @@ public final class SeasonContextService
         return context;
     }
 
+    /**
+     * Returns Ecliptic's resolved climate signal for one biome.
+     *
+     * <p>{@link BiomeClimateSample#offset()} remains in Minecraft/Cold Sweat
+     * WORLD-temperature units. {@link BiomeClimateSample#coldIntensity()} is a
+     * dimensionless seasonal-strength signal:
+     *
+     * <ul>
+     *     <li>0 = no cold-season depression</li>
+     *     <li>1 = the biome reaches Ecliptic's canonical full cold amplitude</li>
+     *     <li>values up to 1.25 are allowed for datapacks that deliberately
+     *         specify stronger-than-default seasonal cooling</li>
+     * </ul>
+     *
+     * <p>The intensity is derived from Ecliptic's actual resolved biome climate
+     * data and Ecliptic's own enum values at runtime. No copied -0.45 constant
+     * or hard-coded solar-term table lives in Cold Sweat.
+     */
+    public static BiomeClimateSample getBiomeClimateSample(
+            Level level,
+            Biome biome
+    )
+    {
+        Objects.requireNonNull(level, "level");
+        Objects.requireNonNull(biome, "biome");
+
+        SeasonContext context = current(level);
+        if (!context.hasSeason() || !adapter.available())
+        {
+            return BiomeClimateSample.NONE;
+        }
+
+        long now = System.nanoTime();
+
+        synchronized (CLIMATE_CACHE)
+        {
+            Map<Biome, CachedClimateSample> levelCache =
+                    CLIMATE_CACHE.computeIfAbsent(
+                            level,
+                            ignored -> new IdentityHashMap<>()
+                    );
+
+            CachedClimateSample cached = levelCache.get(biome);
+            if (cached != null && now < cached.expiresAtNanos())
+            {
+                return cached.sample();
+            }
+        }
+
+        BiomeClimateSample sample =
+                readBiomeClimateSampleUncached(level, biome);
+
+        synchronized (CLIMATE_CACHE)
+        {
+            CLIMATE_CACHE
+                    .computeIfAbsent(
+                            level,
+                            ignored -> new IdentityHashMap<>()
+                    )
+                    .put(
+                            biome,
+                            new CachedClimateSample(
+                                    sample,
+                                    now + CACHE_TTL_NANOS
+                            )
+                    );
+        }
+
+        return sample;
+    }
+
+    /**
+     * Compatibility helper retained from M9.2a.
+     */
+    public static double getBiomeTemperatureOffset(
+            Level level,
+            Biome biome
+    )
+    {
+        return getBiomeClimateSample(level, biome).offset();
+    }
+
     public static boolean isEclipticAvailable()
     {
         if (!initialized)
@@ -153,6 +245,30 @@ public final class SeasonContextService
                 );
             }
             return SeasonContext.NONE;
+        }
+    }
+
+    private static BiomeClimateSample readBiomeClimateSampleUncached(
+            Level level,
+            Biome biome
+    )
+    {
+        try
+        {
+            return adapter.readBiomeClimateSample(level, biome);
+        }
+        catch (ReflectiveOperationException | RuntimeException | LinkageError exception)
+        {
+            if (!climateFailureLogged)
+            {
+                climateFailureLogged = true;
+                ColdSweatFabric.LOGGER.warn(
+                        "Failed to read Ecliptic biome climate data. "
+                                + "Cold Sweat will ignore the seasonal biome signal for this read.",
+                        exception
+                );
+            }
+            return BiomeClimateSample.NONE;
         }
     }
 
@@ -198,12 +314,22 @@ public final class SeasonContextService
         {
             LAST_LOGGED_CONTEXT.clear();
         }
+        synchronized (CLIMATE_CACHE)
+        {
+            CLIMATE_CACHE.clear();
+        }
         readFailureLogged = false;
+        climateFailureLogged = false;
     }
 
     private interface Adapter
     {
         SeasonContext read(Level level) throws ReflectiveOperationException;
+
+        BiomeClimateSample readBiomeClimateSample(
+                Level level,
+                Biome biome
+        ) throws ReflectiveOperationException;
 
         boolean available();
     }
@@ -219,6 +345,15 @@ public final class SeasonContextService
         }
 
         @Override
+        public BiomeClimateSample readBiomeClimateSample(
+                Level level,
+                Biome biome
+        )
+        {
+            return BiomeClimateSample.NONE;
+        }
+
+        @Override
         public boolean available()
         {
             return false;
@@ -229,9 +364,11 @@ public final class SeasonContextService
      * Reflection is intentional here.
      *
      * <p>Ecliptic is optional and its live 26.2 branch can move ahead of the
-     * latest published artifact. Binding the supported public API once at
-     * startup keeps Cold Sweat free of a hard runtime dependency while avoiding
-     * duplicated solar-term tables or localized-name parsing.
+     * latest published artifact. Public calendar state is read from
+     * EclipticSeasonsApi. Ecliptic does not currently expose its resolved
+     * per-biome seasonal temperature delta through that interface, so M9.2
+     * isolates the one internal semantic read (BiomeClimateManager) here and
+     * fails soft if that internal shape changes.
      */
     private static final class EclipticAdapter implements Adapter
     {
@@ -239,12 +376,24 @@ public final class SeasonContextService
                 "com.teamtea.eclipticseasons.api.EclipticSeasonsApi";
         private static final String SOLAR_TERM_CLASS =
                 "com.teamtea.eclipticseasons.api.constant.solar.SolarTerm";
+        private static final String BIOME_CLIMATE_MANAGER_CLASS =
+                "com.teamtea.eclipticseasons.common.core.biome.BiomeClimateManager";
+        private static final String BIOME_CLIMATE_SETTINGS_CLASS =
+                "com.teamtea.eclipticseasons.api.data.climate.BiomeClimateSettings";
 
         private final Method getInstance;
         private final Method getSolarTerm;
         private final Method isSeasonEnabled;
         private final Method getTemperatureChange;
         private final Method getSeason;
+
+        private final Method getDayInTerm;
+        private final Method getLastingDaysOfEachTerm;
+        private final Method getNextSolarTerm;
+        private final Method getBiomeClimateSettings;
+        private final Method getBiomeTemperatureChange;
+
+        private final Object[] solarTerms;
 
         private volatile Object api;
 
@@ -253,7 +402,13 @@ public final class SeasonContextService
                 Method getSolarTerm,
                 Method isSeasonEnabled,
                 Method getTemperatureChange,
-                Method getSeason
+                Method getSeason,
+                Method getDayInTerm,
+                Method getLastingDaysOfEachTerm,
+                Method getNextSolarTerm,
+                Method getBiomeClimateSettings,
+                Method getBiomeTemperatureChange,
+                Object[] solarTerms
         )
         {
             this.getInstance = getInstance;
@@ -261,6 +416,12 @@ public final class SeasonContextService
             this.isSeasonEnabled = isSeasonEnabled;
             this.getTemperatureChange = getTemperatureChange;
             this.getSeason = getSeason;
+            this.getDayInTerm = getDayInTerm;
+            this.getLastingDaysOfEachTerm = getLastingDaysOfEachTerm;
+            this.getNextSolarTerm = getNextSolarTerm;
+            this.getBiomeClimateSettings = getBiomeClimateSettings;
+            this.getBiomeTemperatureChange = getBiomeTemperatureChange;
+            this.solarTerms = solarTerms;
         }
 
         static EclipticAdapter create() throws ReflectiveOperationException
@@ -279,13 +440,44 @@ public final class SeasonContextService
                     false,
                     loader
             );
+            Class<?> biomeClimateManagerClass = Class.forName(
+                    BIOME_CLIMATE_MANAGER_CLASS,
+                    false,
+                    loader
+            );
+            Class<?> biomeClimateSettingsClass = Class.forName(
+                    BIOME_CLIMATE_SETTINGS_CLASS,
+                    false,
+                    loader
+            );
+
+            Object[] solarTerms = solarTermClass.getEnumConstants();
+            if (solarTerms == null || solarTerms.length == 0)
+            {
+                throw new ReflectiveOperationException(
+                        "Ecliptic SolarTerm enum did not expose constants"
+                );
+            }
 
             return new EclipticAdapter(
                     apiClass.getMethod("getInstance"),
                     apiClass.getMethod("getSolarTerm", Level.class),
                     apiClass.getMethod("isSeasonEnabled", Level.class),
                     solarTermClass.getMethod("getTemperatureChange"),
-                    solarTermClass.getMethod("getSeason")
+                    solarTermClass.getMethod("getSeason"),
+                    apiClass.getMethod("getDayInTerm", Level.class),
+                    apiClass.getMethod("getLastingDaysOfEachTerm", Level.class),
+                    solarTermClass.getMethod("getNextSolarTerm"),
+                    biomeClimateManagerClass.getMethod(
+                            "getBiomeClimateSettings",
+                            Biome.class,
+                            boolean.class
+                    ),
+                    biomeClimateSettingsClass.getMethod(
+                            "getTemperatureChange",
+                            solarTermClass
+                    ),
+                    solarTerms
             );
         }
 
@@ -327,6 +519,145 @@ public final class SeasonContextService
             );
         }
 
+        @Override
+        public BiomeClimateSample readBiomeClimateSample(
+                Level level,
+                Biome biome
+        ) throws ReflectiveOperationException
+        {
+            Object api = getApi();
+            Object solarTerm = getSolarTerm.invoke(api, level);
+
+            if (!(solarTerm instanceof Enum<?> solarTermEnum)
+                    || "NONE".equals(solarTermEnum.name()))
+            {
+                return BiomeClimateSample.NONE;
+            }
+
+            boolean enabled = (boolean) isSeasonEnabled.invoke(api, level);
+            if (!enabled)
+            {
+                return BiomeClimateSample.NONE;
+            }
+
+            Object nextSolarTerm = getNextSolarTerm.invoke(solarTerm);
+            Object settings = getBiomeClimateSettings.invoke(
+                    null,
+                    biome,
+                    level instanceof ServerLevel
+            );
+
+            double currentOffset =
+                    ((Number) getBiomeTemperatureChange.invoke(
+                            settings,
+                            solarTerm
+                    )).doubleValue();
+
+            double nextOffset =
+                    ((Number) getBiomeTemperatureChange.invoke(
+                            settings,
+                            nextSolarTerm
+                    )).doubleValue();
+
+            int lastingDays =
+                    ((Number) getLastingDaysOfEachTerm.invoke(
+                            api,
+                            level
+                    )).intValue();
+
+            double interpolatedOffset = currentOffset;
+
+            if (lastingDays > 0)
+            {
+                int dayInTerm =
+                        ((Number) getDayInTerm.invoke(
+                                api,
+                                level
+                        )).intValue();
+
+                double dayFraction = level.dimensionType().hasFixedTime()
+                        ? 0.0
+                        : Math.floorMod(
+                                level.getOverworldClockTime(),
+                                DAY_LENGTH_TICKS
+                        ) / (double) DAY_LENGTH_TICKS;
+
+                double progress =
+                        clamp(
+                                (dayInTerm + dayFraction) / lastingDays,
+                                0.0,
+                                1.0
+                        );
+
+                interpolatedOffset =
+                        currentOffset
+                                + (nextOffset - currentOffset) * progress;
+            }
+
+            /*
+             * Resolve the cold amplitude dynamically from Ecliptic itself.
+             * biomeMinimum reflects datapack/custom BiomeClimateSettings;
+             * rawMinimum reflects Ecliptic's canonical solar-term amplitude.
+             * Their ratio lets a datapack deliberately weaken/strengthen a
+             * biome's seasonal response without Cold Sweat copying -0.45.
+             */
+            double biomeMinimum = 0.0;
+            double rawMinimum = 0.0;
+
+            for (Object term : solarTerms)
+            {
+                if (term instanceof Enum<?> termEnum
+                        && "NONE".equals(termEnum.name()))
+                {
+                    continue;
+                }
+
+                double biomeDelta =
+                        ((Number) getBiomeTemperatureChange.invoke(
+                                settings,
+                                term
+                        )).doubleValue();
+
+                double rawDelta =
+                        ((Number) getTemperatureChange.invoke(
+                                term
+                        )).doubleValue();
+
+                biomeMinimum = Math.min(biomeMinimum, biomeDelta);
+                rawMinimum = Math.min(rawMinimum, rawDelta);
+            }
+
+            double coldIntensity = 0.0;
+
+            if (interpolatedOffset < 0.0
+                    && biomeMinimum < 0.0
+                    && rawMinimum < 0.0)
+            {
+                double progressWithinBiomeColdRange =
+                        clamp(
+                                interpolatedOffset / biomeMinimum,
+                                0.0,
+                                1.0
+                        );
+
+                double biomeAmplitudeRatio =
+                        Math.abs(biomeMinimum / rawMinimum);
+
+                coldIntensity =
+                        clamp(
+                                progressWithinBiomeColdRange
+                                        * biomeAmplitudeRatio,
+                                0.0,
+                                1.25
+                        );
+            }
+
+            return new BiomeClimateSample(
+                    interpolatedOffset,
+                    coldIntensity
+            );
+        }
+
         private Object getApi() throws ReflectiveOperationException
         {
             Object current = api;
@@ -350,10 +681,35 @@ public final class SeasonContextService
         {
             return true;
         }
+
+        private static double clamp(
+                double value,
+                double min,
+                double max
+        )
+        {
+            return Math.max(min, Math.min(max, value));
+        }
+    }
+
+    public record BiomeClimateSample(
+            double offset,
+            double coldIntensity
+    )
+    {
+        public static final BiomeClimateSample NONE =
+                new BiomeClimateSample(0.0, 0.0);
     }
 
     private record CachedContext(
             SeasonContext context,
+            long expiresAtNanos
+    )
+    {
+    }
+
+    private record CachedClimateSample(
+            BiomeClimateSample sample,
             long expiresAtNanos
     )
     {

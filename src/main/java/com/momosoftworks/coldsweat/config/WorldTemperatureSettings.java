@@ -17,8 +17,13 @@ import java.util.Optional;
  */
 public final class WorldTemperatureSettings
 {
-    public static final long DEFAULT_HOTTEST_TIME = 6000L;
-    public static final long DEFAULT_COLDEST_TIME = 18000L;
+    /*
+     * M9.2b phase shift:
+     * - thermal maximum trails solar noon into the afternoon
+     * - thermal minimum occurs shortly before sunrise, not at midnight
+     */
+    public static final long DEFAULT_HOTTEST_TIME = 8000L;
+    public static final long DEFAULT_COLDEST_TIME = 23000L;
 
     public static final double DEFAULT_SHADE_TEMP_OFFSET =
             Temperature.convert(
