@@ -11,6 +11,8 @@
   "item.cold_sweat.minecart_insulation":  "Minecart Insulation",
   "item.cold_sweat.soulspring_lamp":      "Soulspring Lamp",
   "item.cold_sweat.thermometer":          "Thermometer",
+  "item.cold_sweat.thermometer.local_reading":  "Local temperature: %s%s",
+  "item.cold_sweat.thermometer.target_reading": "Measured temperature: %s%s",
   "item.cold_sweat.waterskin":            "Waterskin",
   "item.cold_sweat.filled_waterskin":     "Filled Waterskin",
   "item.cold_sweat.goat_fur":             "Goat Fur",

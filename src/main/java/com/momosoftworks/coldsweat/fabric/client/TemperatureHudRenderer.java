@@ -72,6 +72,30 @@ public final class TemperatureHudRenderer
                 }
         );
 
+        /*
+         * The vanilla overlay/action-bar message sits only nine pixels above
+         * the held-item tooltip, so it also collides with Cold Sweat's centered
+         * temperature instrument. Keep vanilla ownership of timing/fading/text
+         * and move the whole element up by the same stable 12px offset.
+         * This fixes thermometer readings and any other action-bar message that
+         * would otherwise draw through the temperature HUD.
+         */
+        HudElementRegistry.replaceElement(
+                VanillaHudElements.OVERLAY_MESSAGE,
+                original -> (graphics, deltaTracker) ->
+                {
+                    graphics.pose().pushMatrix();
+                    graphics.pose().translate(0.0F, -12.0F);
+
+                    original.extractRenderState(
+                            graphics,
+                            deltaTracker
+                    );
+
+                    graphics.pose().popMatrix();
+                }
+        );
+
         HudElementRegistry.addLast(
                 ColdSweatFabric.id("temperature_hud"),
                 TemperatureHudRenderer::render

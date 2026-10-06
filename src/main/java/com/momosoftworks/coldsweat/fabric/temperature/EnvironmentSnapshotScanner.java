@@ -71,6 +71,42 @@ public final class EnvironmentSnapshotScanner
         BlockPos eyePos = BlockPos.containing(entity.getEyePosition());
         Vec3 entityCenter = entity.getBoundingBox().getCenter();
 
+        return scanAt(
+                level,
+                origin,
+                eyePos,
+                entityCenter
+        );
+    }
+
+    /**
+     * On-demand spatial sample centered on an arbitrary nearby position.
+     *
+     * This is intentionally not cached here: the thermometer calls it only on
+     * explicit player interaction, while the normal entity runtime continues
+     * using its existing low-frequency cached scan.
+     */
+    public static ScanResult scanAt(
+            ServerLevel level,
+            BlockPos origin
+    )
+    {
+        return scanAt(
+                level,
+                origin.immutable(),
+                origin.immutable(),
+                Vec3.atCenterOf(origin)
+        );
+    }
+
+    private static ScanResult scanAt(
+            ServerLevel level,
+            BlockPos origin,
+            BlockPos eyePos,
+            Vec3 entityCenter
+    )
+    {
+
         Map<Long, LevelChunk> chunkCache = new HashMap<>();
         Map<RadiantHeatRegistry.Source, Double> strongestSources =
                 new IdentityHashMap<>();
@@ -315,7 +351,7 @@ public final class EnvironmentSnapshotScanner
                 spatial,
                 scanRoom(
                         level,
-                        entity.blockPosition()
+                        origin
                 )
         );
     }
