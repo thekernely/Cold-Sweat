@@ -2,7 +2,6 @@ package com.momosoftworks.coldsweat.mixin;
 
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.TransmuteRecipe;
-import net.minecraft.world.item.crafting.TransmuteRecipe;
 import net.minecraft.world.item.crafting.display.RecipeDisplay;
 import net.minecraft.world.item.crafting.display.ShapedCraftingRecipeDisplay;
 import net.minecraft.world.item.crafting.display.ShapelessCraftingRecipeDisplay;

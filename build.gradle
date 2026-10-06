@@ -120,8 +120,8 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/api/temperature/modifier/SoulSproutTempModifier.java'
             include 'com/momosoftworks/coldsweat/common/item/SoulSproutItem.java'
 
-            // M5.7: waterskin item runtime, gradual CORE effect, and thermometer.
-            include 'com/momosoftworks/coldsweat/api/temperature/modifier/WaterskinTempModifier.java'
+            // M5.7: waterskin item runtime and thermometer.
+
             include 'com/momosoftworks/coldsweat/common/item/WaterskinItem.java'
             include 'com/momosoftworks/coldsweat/common/item/FilledWaterskinItem.java'
             include 'com/momosoftworks/coldsweat/common/item/ThermometerItem.java'

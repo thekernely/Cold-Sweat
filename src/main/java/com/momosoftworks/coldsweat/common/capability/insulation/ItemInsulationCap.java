@@ -122,13 +122,17 @@ public record ItemInsulationCap(List<Entry> insulation)
             {
                 if (value instanceof AdaptiveInsulation adaptive)
                 {
-                    adaptive.setFactor(AdaptiveInsulation.calculateChange(
+                    double newFactor = AdaptiveInsulation.calculateChange(
                             adaptive,
                             worldTemp,
                             minTemp,
                             maxTemp
-                    ));
-                    changed = true;
+                    );
+                    if (Double.compare(adaptive.getFactor(), newFactor) != 0)
+                    {
+                        adaptive.setFactor(newFactor);
+                        changed = true;
+                    }
                 }
             }
             adaptedEntries.add(new Entry(entry.item().copy(), values));

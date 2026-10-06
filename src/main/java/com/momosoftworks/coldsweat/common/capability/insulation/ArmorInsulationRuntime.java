@@ -97,8 +97,11 @@ public final class ArmorInsulationRuntime
                             freezingPoint,
                             burningPoint
                     );
-                    AdaptiveInsulation.setFactorToArmor(armorStack, newFactor);
-                    adaptive.setFactor(newFactor);
+                    if (Double.compare(adaptive.getFactor(), newFactor) != 0)
+                    {
+                        AdaptiveInsulation.setFactorToArmor(armorStack, newFactor);
+                        adaptive.setFactor(newFactor);
+                    }
                 }
 
                 cold += insulation.getCold();
