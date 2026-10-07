@@ -36,10 +36,10 @@ import java.util.Optional;
  * ambient climate -> non-radiant local effects + radiant apparent load
  *                 -> direct exposure -> WORLD
  *
- * This first split is deliberately behavior-preserving. Existing shade/
- * overcast remains in the ambient-climate stage because it was already part
- * of the pre-local-source chain. True shelter/wind/greenhouse semantics are
- * layered later without forcing block/entity scans to run twice.
+ * Legacy flat shade cooling is intentionally excluded from the ambient
+ * climate chain. Shelter and enclosure are represented by the spatial/room
+ * thermal model instead of applying an arbitrary temperature penalty merely
+ * because the player is beneath a roof.
  */
 public final class TemperatureModifierRuntime
 {
@@ -49,7 +49,7 @@ public final class TemperatureModifierRuntime
      * 0.20 reaches ~99% of a new source load in about one second at 20 TPS.
      */
     /*
-     * Ambient climate should not visibly jump as biome/shade/elevation
+     * Ambient climate should not visibly jump as biome/elevation
      * modifiers refresh. This is intentionally lighter/faster than player
      * core inertia: the surroundings HUD should still react within about a
      * second, just without staircase transitions.
@@ -119,7 +119,7 @@ public final class TemperatureModifierRuntime
      *
      * The ordering remains equivalent to the previously-live chain:
      *
-     * Biome -> Shade -> Elevation -> Cave Biomes
+     * Biome -> Elevation -> Cave Biomes
      *       -> Blocks -> Entities
      *       -> dynamic Water exposure
      *
@@ -135,11 +135,6 @@ public final class TemperatureModifierRuntime
                 entity,
                 stages.ambient,
                 createRegistered("biomes").tickRate(16)
-        );
-        addWorldModifier(
-                entity,
-                stages.ambient,
-                createRegistered("shade").tickRate(16)
         );
         addWorldModifier(
                 entity,
@@ -432,6 +427,7 @@ public final class TemperatureModifierRuntime
                                 scan.room(),
                                 ambientClimate
                         );
+
             }
             else
             {

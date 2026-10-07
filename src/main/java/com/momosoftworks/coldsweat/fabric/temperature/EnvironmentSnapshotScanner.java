@@ -6,9 +6,13 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.FenceBlock;
+import net.minecraft.world.level.block.FenceGateBlock;
+import net.minecraft.world.level.block.WallBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayDeque;
@@ -25,6 +29,10 @@ import java.util.Set;
  * M7.12f-e extends the snapshot with a capped connected-air flood fill for
  * enclosed-room thermals. This still refreshes every 16 ticks rather than
  * continuously.
+ *
+ * M9.3a hardens the same bounded scan for shelter/greenhouse semantics:
+ * porous barriers do not magically seal air, and rooms with large exterior
+ * openings no longer qualify as enclosed thermal reservoirs.
  */
 public final class EnvironmentSnapshotScanner
 {
@@ -51,6 +59,20 @@ public final class EnvironmentSnapshotScanner
 
     private static final int ROOM_CELL_CAP = 8192;
 
+    /*
+     * A room may have small intentional openings, such as a normal doorway,
+     * while still acting as a thermal reservoir with strong ventilation.
+     * Large missing wall sections, roof-only awnings, and porous pens should
+     * not qualify as enclosed rooms at all.
+     *
+     * Coverage alone is insufficient for large rooms: a 3x3 breach in a
+     * ~400-face envelope is still ~97.75% sealed. Keep the proportional check
+     * for small rooms, but also cap the absolute exterior opening area. Four
+     * faces permits a normal double doorway; a 3x3 breach exposes nine.
+     */
+    private static final double MIN_ROOM_ENCLOSURE_COVERAGE = 0.94;
+    private static final int MAX_ROOM_EXTERIOR_OPENING_FACES = 4;
+
     private EnvironmentSnapshotScanner()
     {
     }
@@ -75,7 +97,8 @@ public final class EnvironmentSnapshotScanner
                 level,
                 origin,
                 eyePos,
-                entityCenter
+                entityCenter,
+                entity.getBoundingBox()
         );
     }
 
@@ -95,7 +118,8 @@ public final class EnvironmentSnapshotScanner
                 level,
                 origin.immutable(),
                 origin.immutable(),
-                Vec3.atCenterOf(origin)
+                Vec3.atCenterOf(origin),
+                null
         );
     }
 
@@ -103,7 +127,8 @@ public final class EnvironmentSnapshotScanner
             ServerLevel level,
             BlockPos origin,
             BlockPos eyePos,
-            Vec3 entityCenter
+            Vec3 entityCenter,
+            AABB roomProbeBounds
     )
     {
 
@@ -351,7 +376,8 @@ public final class EnvironmentSnapshotScanner
                 spatial,
                 scanRoom(
                         level,
-                        origin
+                        origin,
+                        roomProbeBounds
                 )
         );
     }
@@ -365,32 +391,31 @@ public final class EnvironmentSnapshotScanner
      * lets an open door rapidly exchange heat without thermally teleporting the
      * player outside or discarding the room reservoir.
      *
+     * M9.3a adds enclosure semantics to that same scan. Small openings remain
+     * ventilation boundaries; porous barriers communicate with the air beyond
+     * them; and a space must have a sufficiently complete envelope before it
+     * can retain room heat.
+     *
      * A player who starts in directly sky-exposed air is still outdoors, and a
      * very large connected space that reaches the safety cap is still treated
      * as open/unbounded.
      */
     private static RoomSample scanRoom(
             ServerLevel level,
-            BlockPos start
+            BlockPos start,
+            AABB probeBounds
     )
     {
-        BlockPos actualStart = start;
-        BlockState startState =
-                level.getBlockState(actualStart);
+        BlockPos actualStart =
+                resolveRoomStart(
+                        level,
+                        start,
+                        probeBounds
+                );
 
-        if (!isRoomAir(level, actualStart, startState))
+        if (actualStart == null)
         {
-            actualStart = start.above();
-            startState = level.getBlockState(actualStart);
-
-            if (!isRoomAir(
-                    level,
-                    actualStart,
-                    startState
-            ))
-            {
-                return RoomSample.unavailable();
-            }
+            return RoomSample.unavailable();
         }
 
         boolean meaningfulSky =
@@ -509,6 +534,62 @@ public final class EnvironmentSnapshotScanner
                     continue;
                 }
 
+                /*
+                 * Fences, walls, closed fence gates, and iron bars obstruct
+                 * movement but not air strongly enough to define a thermal
+                 * envelope. Look through them by one block rather than counting
+                 * them as a sealed boundary. Glass panes intentionally do NOT
+                 * take this path because they are valid greenhouse glazing.
+                 */
+                if (isThermallyPorousBoundary(neighborState))
+                {
+                    BlockPos beyond =
+                            neighbor.relative(direction);
+
+                    if (!level.isInWorldBounds(beyond)
+                            || !level.hasChunkAt(beyond))
+                    {
+                        exteriorOpeningFaces++;
+                        continue;
+                    }
+
+                    BlockState beyondState =
+                            level.getBlockState(beyond);
+
+                    if (isRoomAir(
+                            level,
+                            beyond,
+                            beyondState
+                    ))
+                    {
+                        if (meaningfulSky
+                                && level.canSeeSky(beyond))
+                        {
+                            exteriorOpeningFaces++;
+                            continue;
+                        }
+
+                        long packed =
+                                beyond.asLong();
+
+                        if (visited.add(packed))
+                        {
+                            queue.addLast(
+                                    beyond.immutable()
+                            );
+                        }
+
+                        continue;
+                    }
+
+                    /*
+                     * A porous block backed immediately by a real solid
+                     * envelope still has a sealing layer behind it.
+                     */
+                    boundaryFaces++;
+                    continue;
+                }
+
                 boundaryFaces++;
 
                 RadiantHeatRegistry.Source source =
@@ -531,9 +612,25 @@ public final class EnvironmentSnapshotScanner
             }
         }
 
+        int knownEnvelopeFaces =
+                boundaryFaces + exteriorOpeningFaces;
+
+        double enclosureCoverage =
+                knownEnvelopeFaces > 0
+                        ? boundaryFaces
+                                / (double) knownEnvelopeFaces
+                        : 0.0;
+
+        boolean enclosed =
+                knownEnvelopeFaces > 0
+                        && exteriorOpeningFaces
+                                <= MAX_ROOM_EXTERIOR_OPENING_FACES
+                        && enclosureCoverage
+                                >= MIN_ROOM_ENCLOSURE_COVERAGE;
+
         return new RoomSample(
                 true,
-                true,
+                enclosed,
                 false,
                 volume,
                 boundaryFaces,
@@ -549,6 +646,155 @@ public final class EnvironmentSnapshotScanner
                         maxZ
                 )
         );
+    }
+
+
+    private static BlockPos resolveRoomStart(
+            ServerLevel level,
+            BlockPos start,
+            AABB probeBounds
+    )
+    {
+        BlockState startState =
+                level.getBlockState(start);
+
+        if (isRoomAir(level, start, startState))
+        {
+            return start.immutable();
+        }
+
+        /*
+         * Partial collision blocks such as panes, fences, walls, and bars can
+         * share the player's BlockPos even though the player is physically on
+         * one side of the barrier. Choosing an arbitrary nearby air cell would
+         * let an outside player borrow the warm room on the opposite side.
+         *
+         * For live entity scans, use the player's actual AABB and only accept
+         * horizontal air cells that the body physically overlaps. The side
+         * with the greatest overlap is the side the player occupies. Exact
+         * ties are treated as ambiguous instead of guessing across a boundary.
+         */
+        if (probeBounds != null)
+        {
+            BlockPos best = null;
+            double bestOverlap = 0.0;
+            boolean ambiguous = false;
+
+            for (Direction direction : Direction.values())
+            {
+                if (direction == Direction.UP
+                        || direction == Direction.DOWN)
+                {
+                    continue;
+                }
+
+                BlockPos candidate =
+                        start.relative(direction);
+                BlockState candidateState =
+                        level.getBlockState(candidate);
+
+                if (!isRoomAir(
+                        level,
+                        candidate,
+                        candidateState
+                ))
+                {
+                    continue;
+                }
+
+                double overlap =
+                        overlapVolume(
+                                probeBounds,
+                                candidate
+                        );
+
+                if (overlap <= 1.0e-9)
+                {
+                    continue;
+                }
+
+                if (overlap > bestOverlap + 1.0e-9)
+                {
+                    best = candidate;
+                    bestOverlap = overlap;
+                    ambiguous = false;
+                }
+                else if (Math.abs(overlap - bestOverlap)
+                        <= 1.0e-9)
+                {
+                    ambiguous = true;
+                }
+            }
+
+            if (best != null && !ambiguous)
+            {
+                return best.immutable();
+            }
+
+            if (ambiguous)
+            {
+                return null;
+            }
+        }
+
+        /*
+         * Preserve the old vertical fallback for non-entity probes and unusual
+         * standing surfaces where the block above is the first true air cell.
+         */
+        BlockPos above = start.above();
+        BlockState aboveState =
+                level.getBlockState(above);
+
+        if (isRoomAir(level, above, aboveState))
+        {
+            return above.immutable();
+        }
+
+        return null;
+    }
+
+    private static double overlapVolume(
+            AABB bounds,
+            BlockPos block
+    )
+    {
+        double overlapX =
+                Math.max(
+                        0.0,
+                        Math.min(
+                                bounds.maxX,
+                                block.getX() + 1.0
+                        ) - Math.max(
+                                bounds.minX,
+                                block.getX()
+                        )
+                );
+
+        double overlapY =
+                Math.max(
+                        0.0,
+                        Math.min(
+                                bounds.maxY,
+                                block.getY() + 1.0
+                        ) - Math.max(
+                                bounds.minY,
+                                block.getY()
+                        )
+                );
+
+        double overlapZ =
+                Math.max(
+                        0.0,
+                        Math.min(
+                                bounds.maxZ,
+                                block.getZ() + 1.0
+                        ) - Math.max(
+                                bounds.minZ,
+                                block.getZ()
+                        )
+                );
+
+        return overlapX * overlapY * overlapZ;
     }
 
     private static double scaledRoomHeatPower(
@@ -596,6 +842,16 @@ public final class EnvironmentSnapshotScanner
                         pos
                 )
                 .isEmpty();
+    }
+
+    private static boolean isThermallyPorousBoundary(
+            BlockState state
+    )
+    {
+        return state.getBlock() instanceof FenceBlock
+                || state.getBlock() instanceof WallBlock
+                || state.getBlock() instanceof FenceGateBlock
+                || state.is(Blocks.IRON_BARS);
     }
 
     private static LevelChunk getLoadedChunk(
