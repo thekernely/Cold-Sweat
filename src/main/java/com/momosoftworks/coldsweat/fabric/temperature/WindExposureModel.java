@@ -4,7 +4,7 @@ import com.momosoftworks.coldsweat.api.util.Temperature;
 import net.minecraft.world.entity.LivingEntity;
 
 /**
- * M9.4a wind/exposure contribution to the player-facing apparent environment.
+ * M9.4 wind/exposure contribution to the player-facing apparent environment.
  *
  * Wind belongs to WORLD/apparent temperature, not directly to CORE. Geometry
  * comes from the existing cached EnvironmentSnapshotScanner pass; this model
@@ -15,9 +15,13 @@ import net.minecraft.world.entity.LivingEntity;
  * wet player is not represented by a second arbitrary "wet = colder air"
  * penalty. Weather locality comes from WeatherExposureModel.
  *
- * Hot-weather evaporative cooling, directional wind, and richer Ecliptic
- * weather coupling are intentionally deferred. This first slice establishes
- * the ownership boundary and cold-side survival behavior.
+ * Immersion is also owned by WaterTempModifier. A submerged player receives
+ * direct water-temperature exposure plus wetness physiology; atmospheric wind
+ * is suppressed until the player leaves the water so those two exposure models
+ * do not stack on the same body state.
+ *
+ * Hot-weather evaporative cooling and directional wind are intentionally
+ * deferred. This layer owns only cold-side atmospheric wind exposure.
  */
 public final class WindExposureModel
 {
@@ -74,9 +78,14 @@ public final class WindExposureModel
          * Applying outdoor wind chill again inside that reservoir would
          * double-count open-door heat loss. Underground spaces likewise have
          * no meaningful outdoor wind exposure.
+         *
+         * WaterTempModifier separately owns immersion. Once the entity is in
+         * water, direct water-temperature exposure and wetness physiology are
+         * already active, so atmospheric wind must not stack on top.
          */
         if ((room != null && room.available())
-                || spatial.underground())
+                || spatial.underground()
+                || entity.isInWater())
         {
             return 0.0;
         }
