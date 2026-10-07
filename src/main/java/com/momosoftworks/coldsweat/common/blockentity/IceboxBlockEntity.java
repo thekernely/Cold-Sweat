@@ -12,6 +12,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 
 import java.util.List;
 
@@ -21,6 +23,7 @@ public class IceboxBlockEntity extends HearthBlockEntity
     private static final double MIN_WATER_TEMPERATURE = -50.0;
 
     private boolean usingThermalCold;
+    private boolean powerEnabled;
 
     public IceboxBlockEntity(BlockPos pos, BlockState state)
     {
@@ -41,15 +44,30 @@ public class IceboxBlockEntity extends HearthBlockEntity
             return;
         }
 
-        if (blockEntity.getTicksExisted() % FUEL_INTERVAL == 0)
+        /*
+         * GUI power is authoritative. No redstone signal is required.
+         * A smokestack is still required for room-air cooling.
+         */
+        boolean wantsRoomCold =
+                blockEntity.powerEnabled
+                        && blockEntity.hasThermalOutlet(level);
+
+        boolean processingWaterskin =
+                blockEntity.powerEnabled
+                        && blockEntity.hasWaterskinAboveTarget();
+
+        if (blockEntity.getTicksExisted() % FUEL_INTERVAL == 0
+                && (wantsRoomCold || processingWaterskin))
         {
             blockEntity.tryLoadFuel();
         }
 
-        boolean processingWaterskin =
-                blockEntity.hasWaterskinAboveTarget();
+        blockEntity.usingThermalCold =
+                wantsRoomCold
+                        && blockEntity.getFuel() > 0;
 
-        if (blockEntity.getFuel() > 0
+        if (processingWaterskin
+                && blockEntity.getFuel() > 0
                 && blockEntity.getTicksExisted() % WATERSKIN_INTERVAL == 0)
         {
             blockEntity.coolWaterskins();
@@ -57,17 +75,10 @@ public class IceboxBlockEntity extends HearthBlockEntity
 
         if (blockEntity.getTicksExisted() % EFFECT_INTERVAL == 0)
         {
-            blockEntity.usingThermalCold =
-                    blockEntity.hasThermalOutlet(level)
-                            && blockEntity.hasCoolingSignal(level)
-                            && blockEntity.getFuel() > 0;
-
-            blockEntity.provideThermalEffects(
+            blockEntity.spawnThermalAirParticles(
                     level,
-                    pos,
                     false,
-                    blockEntity.usingThermalCold,
-                    5
+                    blockEntity.usingThermalCold
             );
         }
 
@@ -82,7 +93,9 @@ public class IceboxBlockEntity extends HearthBlockEntity
             blockEntity.setFuel(blockEntity.getFuel() - 1);
         }
 
-        boolean frosted = blockEntity.getFuel() > 0;
+        boolean frosted =
+                activeDemand
+                        && blockEntity.getFuel() > 0;
 
         if (state.getValue(IceboxBlock.FROSTED) != frosted)
         {
@@ -117,6 +130,28 @@ public class IceboxBlockEntity extends HearthBlockEntity
                 Direction.WEST,
                 Direction.DOWN
         );
+    }
+
+    public boolean hasUsableThermalOutlet()
+    {
+        return level != null
+                && hasThermalOutlet(level);
+    }
+
+    public boolean isPowerEnabled()
+    {
+        return powerEnabled;
+    }
+
+    public void setPowerEnabled(boolean enabled)
+    {
+        powerEnabled = enabled;
+        setChanged();
+    }
+
+    public boolean isUsingThermalCold()
+    {
+        return usingThermalCold;
     }
 
     private boolean hasWaterskinAboveTarget()
@@ -174,17 +209,25 @@ public class IceboxBlockEntity extends HearthBlockEntity
 
     private void tryLoadFuel()
     {
-        ItemStack fuelStack = getItem(0);
-        int fuelValue =
-                ThermalFuelRegistry.getIceboxFuel(fuelStack);
-
-        if (fuelValue <= 0
-                || getFuel() > getMaxFuel() - fuelValue)
+        if (getFuel() > 0)
         {
             return;
         }
 
-        setFuel(getFuel() + fuelValue);
+        ItemStack fuelStack = getItem(0);
+        int fuelValue = ThermalFuelRegistry.getIceboxFuel(fuelStack);
+
+        if (fuelValue <= 0)
+        {
+            return;
+        }
+
+        setFuel(
+                Math.min(
+                        getMaxFuel(),
+                        fuelValue
+                )
+        );
 
         if (fuelStack.is(Items.POWDER_SNOW_BUCKET))
         {
@@ -217,5 +260,19 @@ public class IceboxBlockEntity extends HearthBlockEntity
     public void addFuel(int amount)
     {
         addColdFuel(amount);
+    }
+
+    @Override
+    protected void saveAdditional(ValueOutput output)
+    {
+        super.saveAdditional(output);
+        output.putBoolean("PowerEnabled", powerEnabled);
+    }
+
+    @Override
+    protected void loadAdditional(ValueInput input)
+    {
+        super.loadAdditional(input);
+        powerEnabled = input.getBooleanOr("PowerEnabled", false);
     }
 }

@@ -78,7 +78,7 @@ public final class ModMenus
         open(
                 player,
                 pos,
-                Component.translatable("block.cold_sweat.hearth"),
+                Component.translatable("container.cold_sweat.hearth"),
                 (id, inventory, menuPlayer) -> new HearthMenu(
                         id,
                         inventory,

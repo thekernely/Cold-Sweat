@@ -1,6 +1,7 @@
 package com.momosoftworks.coldsweat.fabric.temperature;
 
 import com.momosoftworks.coldsweat.api.util.Temperature;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 
 import java.util.HashMap;
@@ -32,10 +33,10 @@ public final class RoomThermalManager
      * pass. The minimum rate gives a temperature-difference half-life of about
      * 4.4 minutes instead of ~87 seconds.
      */
-    private static final double BASE_EXCHANGE_PER_SECOND = 0.0012;
-    private static final double SURFACE_EXCHANGE_SCALE = 0.0018;
-    private static final double MIN_SEALED_EXCHANGE_PER_SECOND = 0.0026;
-    private static final double MAX_SEALED_EXCHANGE_PER_SECOND = 0.012;
+    private static final double BASE_EXCHANGE_PER_SECOND = 0.00010;
+    private static final double SURFACE_EXCHANGE_SCALE = 0.00050;
+    private static final double MIN_SEALED_EXCHANGE_PER_SECOND = 0.00020;
+    private static final double MAX_SEALED_EXCHANGE_PER_SECOND = 0.004;
 
     /*
      * Exterior opening area is measured in exposed air faces. Dividing by room
@@ -50,7 +51,7 @@ public final class RoomThermalManager
      * Prevent tiny sealed spaces packed with heat sources from converging to
      * absurd temperatures before later material/ventilation systems exist.
      */
-    private static final double MAX_SOURCE_DELTA_C = 30.0;
+    private static final double MAX_ROOM_DELTA_C = 45.0;
 
     private static final long NORMAL_SCAN_GAP_TICKS = 32L;
     private static final long PRUNE_AFTER_TICKS = 20L * 60L * 20L;
@@ -163,20 +164,21 @@ public final class RoomThermalManager
 
         if (elapsedSeconds > 0.0)
         {
+            /*
+             * Machine/source power is independent of envelope leakage.
+             * Improving insulation must not make a heater weaker. A separate
+             * room-air safety bound is applied after the physical integration.
+             */
+            /*
+             * Source output is independent of envelope leakage. Better
+             * insulation retains more heat; it does not weaken the heater.
+             */
             double sourceRateCPerSecond =
                     totalSourcePower
                             / Math.max(
                                     1.0,
                                     sample.volume()
                             );
-
-            sourceRateCPerSecond =
-                    Math.min(
-                            sourceRateCPerSecond,
-                            MAX_SOURCE_DELTA_C
-                                    * leakageRate
-                    );
-
             state.airTemperatureC =
                     evolve(
                             state.airTemperatureC,
@@ -187,6 +189,17 @@ public final class RoomThermalManager
                     );
         }
 
+        /*
+         * Safety bound only. Thermostatic machines should normally stop far
+         * before this. Unlike the old source clamp, this does not weaken heat
+         * output merely because the room is well insulated.
+         */
+        state.airTemperatureC =
+                clamp(
+                        state.airTemperatureC,
+                        outdoorC - MAX_ROOM_DELTA_C,
+                        outdoorC + MAX_ROOM_DELTA_C
+                );
         state.lastUpdateTick = now;
         state.lastTouchedTick = now;
 
@@ -206,6 +219,68 @@ public final class RoomThermalManager
                 state.airTemperatureC,
                 outdoorC
         );
+    }
+
+    /**
+     * Returns the retained temperature of the smallest recently-observed room
+     * whose bounds contain the supplied position.
+     *
+     * This is intentionally a read-only view. Thermal machines decide whether
+     * to run from the reservoir, while RoomThermalManager remains the sole
+     * owner of the room's actual temperature evolution.
+     */
+    public static double getCachedRoomTemperatureC(
+            ServerLevel level,
+            BlockPos pos
+    )
+    {
+        Map<EnvironmentSnapshotScanner.RoomKey, MutableState> levelStates =
+                STATES.get(level);
+
+        if (levelStates == null || levelStates.isEmpty())
+        {
+            return Double.NaN;
+        }
+
+        long now = level.getGameTime();
+        MutableState best = null;
+        double bestVolume = Double.POSITIVE_INFINITY;
+
+        for (Map.Entry<EnvironmentSnapshotScanner.RoomKey, MutableState> entry
+                : levelStates.entrySet())
+        {
+            EnvironmentSnapshotScanner.RoomKey key =
+                    entry.getKey();
+            MutableState candidate =
+                    entry.getValue();
+
+            if (now - candidate.lastTouchedTick > PRUNE_AFTER_TICKS)
+            {
+                continue;
+            }
+
+            if (pos.getX() < key.minX()
+                    || pos.getX() > key.maxX()
+                    || pos.getY() < key.minY()
+                    || pos.getY() > key.maxY()
+                    || pos.getZ() < key.minZ()
+                    || pos.getZ() > key.maxZ())
+            {
+                continue;
+            }
+
+            double volume = boxVolume(key);
+
+            if (volume < bestVolume)
+            {
+                best = candidate;
+                bestVolume = volume;
+            }
+        }
+
+        return best == null
+                ? Double.NaN
+                : best.airTemperatureC;
     }
 
     private static MutableState resolveState(
@@ -360,7 +435,7 @@ public final class RoomThermalManager
     )
     {
         double surfaceToVolume =
-                sample.boundaryFaces()
+                sample.boundaryConductance()
                         / (double) Math.max(
                                 1,
                                 sample.volume()
@@ -427,6 +502,54 @@ public final class RoomThermalManager
                 * response;
     }
 
+    /**
+     * Read-only retained-room lookup for machine GUIs.
+     */
+    public static double peekRoomTemperatureC(
+            ServerLevel level,
+            BlockPos pos
+    )
+    {
+        Map<EnvironmentSnapshotScanner.RoomKey, MutableState> states =
+                STATES.get(level);
+
+        if (states == null || states.isEmpty())
+        {
+            return Double.NaN;
+        }
+
+        long now = level.getGameTime();
+        MutableState bestState = null;
+        double bestVolume = Double.POSITIVE_INFINITY;
+
+        for (Map.Entry<EnvironmentSnapshotScanner.RoomKey, MutableState> entry
+                : states.entrySet())
+        {
+            EnvironmentSnapshotScanner.RoomKey key = entry.getKey();
+            MutableState state = entry.getValue();
+
+            if (now - state.lastTouchedTick > PRUNE_AFTER_TICKS)
+            {
+                continue;
+            }
+
+            if (pos.getX() < key.minX() || pos.getX() > key.maxX()
+                    || pos.getY() < key.minY() || pos.getY() > key.maxY()
+                    || pos.getZ() < key.minZ() || pos.getZ() > key.maxZ())
+            {
+                continue;
+            }
+
+            double volume = boxVolume(key);
+            if (volume < bestVolume)
+            {
+                bestVolume = volume;
+                bestState = state;
+            }
+        }
+
+        return bestState != null ? bestState.airTemperatureC : Double.NaN;
+    }
     private static void prune(
             Map<EnvironmentSnapshotScanner.RoomKey, MutableState> states,
             long now

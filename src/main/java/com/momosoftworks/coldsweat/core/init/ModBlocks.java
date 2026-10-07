@@ -35,6 +35,10 @@ public final class ModBlocks
                     .strength(2.0F, 10.0F)
                     .requiresCorrectToolForDrops()
                     .noOcclusion()
+                    .lightLevel(state ->
+                            state.getValue(HearthBottomBlock.LIT)
+                                    ? 15
+                                    : 0)
     );
 
     public static final HearthTopBlock HEARTH_TOP = register(
@@ -54,6 +58,10 @@ public final class ModBlocks
                     .sound(SoundType.STONE)
                     .strength(2.0F, 10.0F)
                     .requiresCorrectToolForDrops()
+                    .lightLevel(state ->
+                            state.getValue(BoilerBlock.LIT)
+                                    ? 13
+                                    : 0)
     );
 
     public static final IceboxBlock ICEBOX = register(

@@ -36,6 +36,12 @@ public final class ModCreativeTabs
                 output.accept(ModItems.NETHERITE_FLASK);
                 output.accept(ModItems.THERMOMETER);
 
+                output.accept(ModItems.HEARTH);
+                output.accept(ModItems.BOILER);
+                output.accept(ModItems.ICEBOX);
+                output.accept(ModItems.SMOKESTACK);
+                output.accept(ModItems.SLUSH_BUCKET);
+
                 output.accept(ModItems.HOGLIN_HELMET);
                 output.accept(ModItems.HOGLIN_CHESTPLATE);
                 output.accept(ModItems.HOGLIN_LEGGINGS);

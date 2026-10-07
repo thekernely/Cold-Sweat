@@ -12,6 +12,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 
 import java.util.List;
 
@@ -21,6 +23,7 @@ public class BoilerBlockEntity extends HearthBlockEntity
     private static final double MAX_WATER_TEMPERATURE = 50.0;
 
     private boolean usingThermalHeat;
+    private boolean powerEnabled;
 
     public BoilerBlockEntity(BlockPos pos, BlockState state)
     {
@@ -41,15 +44,32 @@ public class BoilerBlockEntity extends HearthBlockEntity
             return;
         }
 
-        if (blockEntity.getTicksExisted() % FUEL_INTERVAL == 0)
+        /*
+         * M9.3c9b:
+         * The GUI power switch is the normal control path.
+         * Redstone is NOT required. The smokestack remains the physical
+         * room-air outlet requirement.
+         */
+        boolean wantsRoomHeat =
+                blockEntity.powerEnabled
+                        && blockEntity.hasThermalOutlet(level);
+
+        boolean processingWaterskin =
+                blockEntity.powerEnabled
+                        && blockEntity.hasWaterskinBelowTarget();
+
+        if (blockEntity.getTicksExisted() % FUEL_INTERVAL == 0
+                && (wantsRoomHeat || processingWaterskin))
         {
             blockEntity.tryLoadFuel();
         }
 
-        boolean processingWaterskin =
-                blockEntity.hasWaterskinBelowTarget();
+        blockEntity.usingThermalHeat =
+                wantsRoomHeat
+                        && blockEntity.getFuel() > 0;
 
-        if (blockEntity.getFuel() > 0
+        if (processingWaterskin
+                && blockEntity.getFuel() > 0
                 && blockEntity.getTicksExisted() % WATERSKIN_INTERVAL == 0)
         {
             blockEntity.warmWaterskins();
@@ -57,17 +77,10 @@ public class BoilerBlockEntity extends HearthBlockEntity
 
         if (blockEntity.getTicksExisted() % EFFECT_INTERVAL == 0)
         {
-            blockEntity.usingThermalHeat =
-                    blockEntity.hasThermalOutlet(level)
-                            && blockEntity.hasHeatingSignal(level)
-                            && blockEntity.getFuel() > 0;
-
-            blockEntity.provideThermalEffects(
+            blockEntity.spawnThermalAirParticles(
                     level,
-                    pos,
                     blockEntity.usingThermalHeat,
-                    false,
-                    5
+                    false
             );
         }
 
@@ -83,8 +96,8 @@ public class BoilerBlockEntity extends HearthBlockEntity
         }
 
         boolean lit =
-                blockEntity.getFuel() > 0
-                        && activeDemand;
+                activeDemand
+                        && blockEntity.getFuel() > 0;
 
         if (state.getValue(BoilerBlock.LIT) != lit)
         {
@@ -93,6 +106,7 @@ public class BoilerBlockEntity extends HearthBlockEntity
                     state.setValue(BoilerBlock.LIT, lit),
                     3
             );
+            level.getLightEngine().checkBlock(pos);
         }
     }
 
@@ -113,6 +127,28 @@ public class BoilerBlockEntity extends HearthBlockEntity
     protected List<Direction> getCoolingSides()
     {
         return List.of();
+    }
+
+    public boolean hasUsableThermalOutlet()
+    {
+        return level != null
+                && hasThermalOutlet(level);
+    }
+
+    public boolean isPowerEnabled()
+    {
+        return powerEnabled;
+    }
+
+    public void setPowerEnabled(boolean enabled)
+    {
+        powerEnabled = enabled;
+        setChanged();
+    }
+
+    public boolean isUsingThermalHeat()
+    {
+        return usingThermalHeat;
     }
 
     private boolean hasWaterskinBelowTarget()
@@ -168,19 +204,32 @@ public class BoilerBlockEntity extends HearthBlockEntity
         }
     }
 
+    /**
+     * Vanilla-like burn buffer:
+     * only consume one visible fuel item when the reservoir is empty AND the
+     * powered machine actually needs energy.
+     */
     private void tryLoadFuel()
     {
-        ItemStack fuelStack = getItem(0);
-        int fuelValue =
-                ThermalFuelRegistry.getBoilerFuel(fuelStack);
-
-        if (fuelValue <= 0
-                || getFuel() > getMaxFuel() - fuelValue)
+        if (getFuel() > 0)
         {
             return;
         }
 
-        setFuel(getFuel() + fuelValue);
+        ItemStack fuelStack = getItem(0);
+        int fuelValue = ThermalFuelRegistry.getBoilerFuel(fuelStack);
+
+        if (fuelValue <= 0)
+        {
+            return;
+        }
+
+        setFuel(
+                Math.min(
+                        getMaxFuel(),
+                        fuelValue
+                )
+        );
 
         if (fuelStack.is(Items.LAVA_BUCKET))
         {
@@ -213,5 +262,19 @@ public class BoilerBlockEntity extends HearthBlockEntity
     public void addFuel(int amount)
     {
         addHotFuel(amount);
+    }
+
+    @Override
+    protected void saveAdditional(ValueOutput output)
+    {
+        super.saveAdditional(output);
+        output.putBoolean("PowerEnabled", powerEnabled);
+    }
+
+    @Override
+    protected void loadAdditional(ValueInput input)
+    {
+        super.loadAdditional(input);
+        powerEnabled = input.getBooleanOr("PowerEnabled", false);
     }
 }

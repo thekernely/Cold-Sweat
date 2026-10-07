@@ -141,6 +141,7 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/common/block/BoilerBlock.java'
             include 'com/momosoftworks/coldsweat/common/block/IceboxBlock.java'
             include 'com/momosoftworks/coldsweat/common/block/SmokestackBlock.java'
+            include 'com/momosoftworks/coldsweat/client/renderer/block/HearthBlockEntityRenderer.java'
             include 'com/momosoftworks/coldsweat/common/blockentity/HearthBlockEntity.java'
             include 'com/momosoftworks/coldsweat/common/blockentity/BoilerBlockEntity.java'
             include 'com/momosoftworks/coldsweat/common/blockentity/IceboxBlockEntity.java'
@@ -195,14 +196,26 @@ sourceSets {
             include 'assets/cold_sweat/textures/gui/overlay/body_temp_gauge.png'
             include 'assets/cold_sweat/textures/gui/overlay/vague_temp_gauge.png'
             include 'assets/cold_sweat/textures/gui/overlay/hearts_frozen.png'
+            include 'assets/cold_sweat/textures/gui/sprites/hearth/**'
+            include 'assets/cold_sweat/textures/gui/screen/icebox_gui.png'
+            include 'assets/cold_sweat/textures/gui/screen/boiler_gui.png'
+            include 'assets/cold_sweat/textures/gui/screen/hearth_gui.png'
             include 'data/cold_sweat/recipe/hearth.json'
             include 'data/cold_sweat/recipe/boiler.json'
             include 'data/cold_sweat/recipe/icebox.json'
             include 'data/cold_sweat/recipe/smokestack.json'
             include 'data/cold_sweat/loot_table/blocks/hearth_bottom.json'
+            include 'data/cold_sweat/loot_table/blocks/hearth_top.json'
             include 'data/cold_sweat/loot_table/blocks/boiler.json'
             include 'data/cold_sweat/loot_table/blocks/icebox.json'
             include 'data/cold_sweat/loot_table/blocks/smokestack.json'
+
+            // M9.3c: preserve the tool tags used by all restored thermal-machine blocks.
+            // Without these resources, requiresCorrectToolForDrops() sees no valid
+            // pickaxe for Hearth/Boiler/Smokestack and axe mining never accelerates
+            // the Icebox.
+            include 'data/minecraft/tags/block/mineable/pickaxe.json'
+            include 'data/minecraft/tags/block/mineable/axe.json'
 
             // M5.8: first-useful-release item recipes.
             include 'data/cold_sweat/recipe/waterskin.json'

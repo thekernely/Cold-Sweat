@@ -1,10 +1,9 @@
 package com.momosoftworks.coldsweat.common.block;
 
-import com.momosoftworks.coldsweat.api.registry.ThermalFuelRegistry;
 import com.momosoftworks.coldsweat.common.blockentity.IceboxBlockEntity;
 import com.momosoftworks.coldsweat.core.init.ModBlockEntities;
-import com.momosoftworks.coldsweat.core.init.ModMenus;
 import com.momosoftworks.coldsweat.core.init.ModItems;
+import com.momosoftworks.coldsweat.core.init.ModMenus;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
@@ -16,7 +15,6 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
@@ -26,9 +24,9 @@ import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
-import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
@@ -61,61 +59,32 @@ public class IceboxBlock extends Block implements EntityBlock
         return defaultBlockState()
                 .setValue(FACING, context.getHorizontalDirection().getOpposite())
                 .setValue(FROSTED, false)
-                .setValue(
-                        SMOKESTACK,
-                        context.getLevel()
-                                .getBlockState(context.getClickedPos().above())
-                                .getBlock() instanceof SmokestackBlock
-                );
+                .setValue(SMOKESTACK,
+                        context.getLevel().getBlockState(context.getClickedPos().above()).getBlock()
+                                instanceof SmokestackBlock);
     }
 
     @Override
-    protected InteractionResult useItemOn(
-            ItemStack stack,
-            BlockState state,
-            Level level,
-            BlockPos pos,
-            Player player,
-            InteractionHand hand,
-            BlockHitResult hit
-    )
+    protected InteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos,
+                                          Player player, InteractionHand hand, BlockHitResult hit)
     {
-        int itemFuel = ThermalFuelRegistry.getIceboxFuel(stack);
-        if (itemFuel <= 0)
+        if (stack.is(ModItems.SMOKESTACK)
+                && hit.getDirection() == Direction.UP
+                && level.getBlockState(pos.above()).canBeReplaced())
         {
-            if (stack.is(ModItems.SMOKESTACK)
-                    && hit.getDirection() == Direction.UP
-                    && level.getBlockState(pos.above()).canBeReplaced())
-            {
-                return InteractionResult.PASS;
-            }
-
-            if (player instanceof ServerPlayer serverPlayer)
-            {
-                ModMenus.openIcebox(serverPlayer, pos);
-            }
-            return InteractionResult.SUCCESS;
+            return InteractionResult.PASS;
         }
 
-        if (level.getBlockEntity(pos) instanceof IceboxBlockEntity icebox
-                && !level.isClientSide()
-                && icebox.getFuel() <= icebox.getMaxFuel() - itemFuel)
+        if (player instanceof ServerPlayer serverPlayer)
         {
-            icebox.addFuel(itemFuel);
-            consumeFuelItem(player, hand, stack);
+            ModMenus.openIcebox(serverPlayer, pos);
         }
-
         return InteractionResult.SUCCESS;
     }
 
     @Override
-    protected InteractionResult useWithoutItem(
-            BlockState state,
-            Level level,
-            BlockPos pos,
-            Player player,
-            BlockHitResult hit
-    )
+    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos,
+                                               Player player, BlockHitResult hit)
     {
         if (player instanceof ServerPlayer serverPlayer)
         {
@@ -124,75 +93,22 @@ public class IceboxBlock extends Block implements EntityBlock
         return InteractionResult.SUCCESS;
     }
 
-    private static void consumeFuelItem(
-            Player player,
-            InteractionHand hand,
-            ItemStack stack
-    )
-    {
-        if (player.isCreative())
-        {
-            return;
-        }
-
-        if (stack.is(Items.POWDER_SNOW_BUCKET))
-        {
-            player.setItemInHand(
-                    hand,
-                    new ItemStack(Items.BUCKET)
-            );
-        }
-        else
-        {
-            stack.shrink(1);
-        }
-    }
-
     @Override
-    protected BlockState updateShape(
-            BlockState state,
-            LevelReader level,
-            ScheduledTickAccess ticks,
-            BlockPos pos,
-            Direction directionToNeighbour,
-            BlockPos neighbourPos,
-            BlockState neighbourState,
-            RandomSource random
-    )
+    protected BlockState updateShape(BlockState state, LevelReader level, ScheduledTickAccess ticks,
+                                     BlockPos pos, Direction directionToNeighbour, BlockPos neighbourPos,
+                                     BlockState neighbourState, RandomSource random)
     {
         if (directionToNeighbour == Direction.UP)
         {
-            state = state.setValue(
-                    SMOKESTACK,
-                    neighbourState.getBlock() instanceof SmokestackBlock
-            );
+            state = state.setValue(SMOKESTACK, neighbourState.getBlock() instanceof SmokestackBlock);
         }
-
-        return super.updateShape(
-                state,
-                level,
-                ticks,
-                pos,
-                directionToNeighbour,
-                neighbourPos,
-                neighbourState,
-                random
-        );
+        return super.updateShape(state, level, ticks, pos, directionToNeighbour, neighbourPos, neighbourState, random);
     }
 
     @Override
-    public void animateTick(
-            BlockState state,
-            Level level,
-            BlockPos pos,
-            RandomSource random
-    )
+    public void animateTick(BlockState state, Level level, BlockPos pos, RandomSource random)
     {
-        if (!state.getValue(FROSTED) || random.nextFloat() >= 0.4F)
-        {
-            return;
-        }
-
+        if (!state.getValue(FROSTED) || random.nextFloat() >= 0.4F) return;
         double x = pos.getX() + 0.5 + random.nextDouble() - 0.5;
         double y = pos.getY() + 0.08 + random.nextDouble() * 0.25;
         double z = pos.getZ() + 0.5 + random.nextDouble() - 0.5;
@@ -200,38 +116,21 @@ public class IceboxBlock extends Block implements EntityBlock
     }
 
     @Override
-    protected boolean hasAnalogOutputSignal(BlockState state)
+    protected boolean hasAnalogOutputSignal(BlockState state) { return true; }
+
+    @Override
+    protected int getAnalogOutputSignal(BlockState state, Level level, BlockPos pos, Direction direction)
     {
-        return true;
+        return AbstractContainerMenu.getRedstoneSignalFromBlockEntity(level.getBlockEntity(pos));
     }
 
     @Override
-    protected int getAnalogOutputSignal(
-            BlockState state,
-            Level level,
-            BlockPos pos,
-            Direction direction
-    )
+    public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player)
     {
-        return AbstractContainerMenu.getRedstoneSignalFromBlockEntity(
-                level.getBlockEntity(pos)
-        );
-    }
-
-    @Override
-    public BlockState playerWillDestroy(
-            Level level,
-            BlockPos pos,
-            BlockState state,
-            Player player
-    )
-    {
-        if (!level.isClientSide()
-                && level.getBlockEntity(pos) instanceof IceboxBlockEntity icebox)
+        if (!level.isClientSide() && level.getBlockEntity(pos) instanceof IceboxBlockEntity icebox)
         {
             Containers.dropContents(level, pos, icebox);
         }
-
         return super.playerWillDestroy(level, pos, state, player);
     }
 
@@ -242,16 +141,9 @@ public class IceboxBlock extends Block implements EntityBlock
     }
 
     @Override
-    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(
-            Level level,
-            BlockState state,
-            BlockEntityType<T> type
-    )
+    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type)
     {
-        if (type != ModBlockEntities.ICEBOX)
-        {
-            return null;
-        }
+        if (type != ModBlockEntities.ICEBOX) return null;
         return (tickLevel, pos, tickState, entity) ->
         {
             if (entity instanceof IceboxBlockEntity icebox)

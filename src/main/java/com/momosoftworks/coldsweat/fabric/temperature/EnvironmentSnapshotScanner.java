@@ -3,6 +3,7 @@ package com.momosoftworks.coldsweat.fabric.temperature;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.block.Blocks;
@@ -445,6 +446,7 @@ public final class EnvironmentSnapshotScanner
 
         int volume = 0;
         int boundaryFaces = 0;
+        double boundaryConductance = 0.0;
         int exteriorOpeningFaces = 0;
         int solarGlazingFaces = 0;
         int heatSourceBlocks = 0;
@@ -472,19 +474,14 @@ public final class EnvironmentSnapshotScanner
             maxY = Math.max(maxY, pos.getY());
             maxZ = Math.max(maxZ, pos.getZ());
 
-            RadiantHeatRegistry.Source currentSource =
-                    RadiantHeatRegistry.get(state)
-                            .orElse(null);
+            double currentSourcePower =
+                    roomSourcePower(level, pos, state);
 
-            if (currentSource != null
+            if (currentSourcePower != 0.0
                     && sourcePositions.add(pos.asLong()))
             {
                 heatSourceBlocks++;
-                heatPower +=
-                        scaledRoomHeatPower(
-                                currentSource,
-                                state
-                        );
+                heatPower += currentSourcePower;
             }
 
             if (volume >= ROOM_CELL_CAP)
@@ -607,27 +604,27 @@ public final class EnvironmentSnapshotScanner
                      * envelope still has a sealing layer behind it.
                      */
                     boundaryFaces++;
+                    boundaryConductance += thermalConductance(beyondState);
                     continue;
                 }
 
                 boundaryFaces++;
+                boundaryConductance += thermalConductance(neighborState);
 
-                RadiantHeatRegistry.Source source =
-                        RadiantHeatRegistry.get(
+                double sourcePower =
+                        roomSourcePower(
+                                level,
+                                neighbor,
                                 neighborState
-                        ).orElse(null);
+                        );
 
-                if (source != null
+                if (sourcePower != 0.0
                         && sourcePositions.add(
                                 neighbor.asLong()
                         ))
                 {
                     heatSourceBlocks++;
-                    heatPower +=
-                            scaledRoomHeatPower(
-                                    source,
-                                    neighborState
-                            );
+                    heatPower += sourcePower;
                 }
             }
         }
@@ -654,6 +651,7 @@ public final class EnvironmentSnapshotScanner
                 false,
                 volume,
                 boundaryFaces,
+                boundaryConductance,
                 exteriorOpeningFaces,
                 solarGlazingFaces,
                 heatSourceBlocks,
@@ -818,6 +816,32 @@ public final class EnvironmentSnapshotScanner
         return overlapX * overlapY * overlapZ;
     }
 
+    private static double roomSourcePower(
+            ServerLevel level,
+            BlockPos pos,
+            BlockState state
+    )
+    {
+        double machinePower =
+                ThermalMachineRoomSource.getPower(
+                        level,
+                        pos,
+                        state
+                );
+
+        RadiantHeatRegistry.Source source =
+                RadiantHeatRegistry.get(state)
+                        .orElse(null);
+
+        return source == null
+                ? machinePower
+                : machinePower
+                        + scaledRoomHeatPower(
+                                source,
+                                state
+                        );
+    }
+
     private static double scaledRoomHeatPower(
             RadiantHeatRegistry.Source source,
             BlockState state
@@ -908,6 +932,39 @@ public final class EnvironmentSnapshotScanner
         }
 
         return true;
+    }
+
+    /**
+     * Relative envelope conductance per boundary face.
+     *
+     * This is deliberately a coarse survival-game abstraction, not an R-value
+     * simulation. Wool is a strong insulator, wood modestly better than the
+     * generic solid baseline, and glazing modestly worse.
+     */
+    private static double thermalConductance(
+            BlockState state
+    )
+    {
+        if (state.is(BlockTags.WOOL))
+        {
+            return 0.25;
+        }
+
+        if (state.is(BlockTags.PLANKS)
+                || state.is(BlockTags.LOGS))
+        {
+            return 0.75;
+        }
+
+        if (state.is(Blocks.GLASS)
+                || state.is(Blocks.TINTED_GLASS)
+                || state.getBlock()
+                        instanceof net.minecraft.world.level.block.StainedGlassBlock)
+        {
+            return 1.15;
+        }
+
+        return 1.0;
     }
 
     private static boolean isSolarRoofGlazing(
@@ -1078,6 +1135,7 @@ public final class EnvironmentSnapshotScanner
             boolean capped,
             int volume,
             int boundaryFaces,
+            double boundaryConductance,
             int exteriorOpeningFaces,
             int solarGlazingFaces,
             int heatSourceBlocks,
@@ -1092,6 +1150,7 @@ public final class EnvironmentSnapshotScanner
                         false,
                         0,
                         0,
+                        0.0,
                         0,
                         0,
                         0,
@@ -1112,6 +1171,7 @@ public final class EnvironmentSnapshotScanner
                     false,
                     visited,
                     0,
+                    0.0,
                     0,
                     0,
                     0,
@@ -1128,6 +1188,7 @@ public final class EnvironmentSnapshotScanner
                     true,
                     visited,
                     0,
+                    0.0,
                     0,
                     0,
                     0,

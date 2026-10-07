@@ -4,6 +4,7 @@ import com.momosoftworks.coldsweat.api.registry.BlockTempRegistry;
 import com.momosoftworks.coldsweat.api.temperature.block_temp.BlockTemp;
 import com.momosoftworks.coldsweat.api.util.Temperature;
 import com.momosoftworks.coldsweat.fabric.temperature.RadiantHeatRegistry;
+import com.momosoftworks.coldsweat.core.init.ModBlocks;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
@@ -102,11 +103,22 @@ public class BlockTempModifier extends TempModifier
                      * snapshot from M7.12f-d onward. Do not also convert these
                      * same blocks into direct WORLD-temperature deltas here.
                      *
+                     * M9.3c extends that ownership rule to Cold Sweat thermal
+                     * machines. Boiler/Hearth/Icebox now heat or cool retained
+                     * room air through RoomThermalManager; treating the machine
+                     * block itself as a legacy local source would double-count
+                     * it and make the displayed temperature snap instantly when
+                     * the machine toggles.
+                     *
                      * Non-radiant/magical sources such as soul fire and the
                      * dimension-dependent Nether portal continue through the
                      * legacy block-temperature path for now.
                      */
-                    if (RadiantHeatRegistry.get(state).isPresent())
+                    if (RadiantHeatRegistry.get(state).isPresent()
+                            || state.is(ModBlocks.BOILER)
+                            || state.is(ModBlocks.ICEBOX)
+                            || state.is(ModBlocks.HEARTH_BOTTOM)
+                            || state.is(ModBlocks.HEARTH_TOP))
                     {
                         continue;
                     }

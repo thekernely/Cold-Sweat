@@ -1,6 +1,5 @@
 package com.momosoftworks.coldsweat.common.block;
 
-import com.momosoftworks.coldsweat.api.registry.ThermalFuelRegistry;
 import com.momosoftworks.coldsweat.common.blockentity.HearthBlockEntity;
 import com.momosoftworks.coldsweat.core.init.ModBlockEntities;
 import com.momosoftworks.coldsweat.core.init.ModBlocks;
@@ -17,7 +16,6 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
@@ -25,6 +23,7 @@ import net.minecraft.world.level.ScheduledTickAccess;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -64,6 +63,12 @@ public class HearthBottomBlock extends Block implements EntityBlock
     }
 
     @Override
+    protected RenderShape getRenderShape(BlockState state)
+    {
+        return RenderShape.INVISIBLE;
+    }
+
+    @Override
     public BlockState getStateForPlacement(BlockPlaceContext context)
     {
         BlockPos topPos = context.getClickedPos().above();
@@ -71,87 +76,22 @@ public class HearthBottomBlock extends Block implements EntityBlock
         {
             return null;
         }
-
-        return defaultBlockState()
-                .setValue(FACING, context.getHorizontalDirection().getOpposite());
+        return defaultBlockState().setValue(FACING, context.getHorizontalDirection().getOpposite());
     }
 
     @Override
-    public void setPlacedBy(
-            Level level,
-            BlockPos pos,
-            BlockState state,
-            LivingEntity placer,
-            ItemStack stack
-    )
+    public void setPlacedBy(Level level, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack)
     {
         super.setPlacedBy(level, pos, state, placer, stack);
-
         if (!level.isClientSide())
         {
-            level.setBlock(
-                    pos.above(),
-                    ModBlocks.HEARTH_TOP.defaultBlockState(),
-                    3
-            );
+            level.setBlock(pos.above(), ModBlocks.HEARTH_TOP.defaultBlockState(), 3);
         }
     }
 
     @Override
-    protected InteractionResult useItemOn(
-            ItemStack stack,
-            BlockState state,
-            Level level,
-            BlockPos pos,
-            Player player,
-            InteractionHand hand,
-            BlockHitResult hit
-    )
-    {
-        int itemFuel = ThermalFuelRegistry.getHearthFuel(stack);
-        if (itemFuel == 0)
-        {
-            if (player instanceof ServerPlayer serverPlayer)
-            {
-                ModMenus.openHearth(serverPlayer, pos);
-            }
-            return InteractionResult.SUCCESS;
-        }
-
-        if (level.getBlockEntity(pos) instanceof HearthBlockEntity hearth)
-        {
-            int magnitude = Math.abs(itemFuel);
-            int stored = itemFuel > 0
-                    ? hearth.getHotFuel()
-                    : hearth.getColdFuel();
-
-            if (!level.isClientSide()
-                    && stored <= hearth.getMaxFuel() - magnitude)
-            {
-                if (itemFuel > 0)
-                {
-                    hearth.addHotFuel(magnitude);
-                }
-                else
-                {
-                    hearth.addColdFuel(magnitude);
-                }
-
-                consumeFuelItem(player, hand, stack);
-            }
-        }
-
-        return InteractionResult.SUCCESS;
-    }
-
-    @Override
-    protected InteractionResult useWithoutItem(
-            BlockState state,
-            Level level,
-            BlockPos pos,
-            Player player,
-            BlockHitResult hit
-    )
+    protected InteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos,
+                                          Player player, InteractionHand hand, BlockHitResult hit)
     {
         if (player instanceof ServerPlayer serverPlayer)
         {
@@ -160,103 +100,53 @@ public class HearthBottomBlock extends Block implements EntityBlock
         return InteractionResult.SUCCESS;
     }
 
-    private static void consumeFuelItem(
-            Player player,
-            InteractionHand hand,
-            ItemStack stack
-    )
+    @Override
+    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos,
+                                               Player player, BlockHitResult hit)
     {
-        if (player.isCreative())
+        if (player instanceof ServerPlayer serverPlayer)
         {
-            return;
+            ModMenus.openHearth(serverPlayer, pos);
         }
-
-        if (stack.is(Items.LAVA_BUCKET)
-                || stack.is(Items.POWDER_SNOW_BUCKET))
-        {
-            player.setItemInHand(
-                    hand,
-                    new ItemStack(Items.BUCKET)
-            );
-        }
-        else
-        {
-            stack.shrink(1);
-        }
+        return InteractionResult.SUCCESS;
     }
 
     @Override
-    protected BlockState updateShape(
-            BlockState state,
-            LevelReader level,
-            ScheduledTickAccess ticks,
-            BlockPos pos,
-            Direction directionToNeighbour,
-            BlockPos neighbourPos,
-            BlockState neighbourState,
-            RandomSource random
-    )
+    protected BlockState updateShape(BlockState state, LevelReader level, ScheduledTickAccess ticks,
+                                     BlockPos pos, Direction directionToNeighbour, BlockPos neighbourPos,
+                                     BlockState neighbourState, RandomSource random)
     {
-        if (directionToNeighbour == Direction.UP
-                && !neighbourState.is(ModBlocks.HEARTH_TOP))
+        if (directionToNeighbour == Direction.UP && !neighbourState.is(ModBlocks.HEARTH_TOP))
         {
             return Blocks.AIR.defaultBlockState();
         }
-
-        return super.updateShape(
-                state,
-                level,
-                ticks,
-                pos,
-                directionToNeighbour,
-                neighbourPos,
-                neighbourState,
-                random
-        );
+        return super.updateShape(state, level, ticks, pos, directionToNeighbour, neighbourPos, neighbourState, random);
     }
 
     @Override
-    public BlockState playerWillDestroy(
-            Level level,
-            BlockPos pos,
-            BlockState state,
-            Player player
-    )
+    public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player)
     {
-        if (!level.isClientSide()
-                && level.getBlockEntity(pos) instanceof HearthBlockEntity hearth)
+        if (!level.isClientSide() && level.getBlockEntity(pos) instanceof HearthBlockEntity hearth)
         {
             Containers.dropContents(level, pos, hearth);
         }
-
         return super.playerWillDestroy(level, pos, state, player);
     }
 
     @Override
-    public void animateTick(
-            BlockState state,
-            Level level,
-            BlockPos pos,
-            RandomSource random
-    )
+    public void animateTick(BlockState state, Level level, BlockPos pos, RandomSource random)
     {
         if (state.getValue(LIT) && random.nextFloat() < 0.6F)
         {
             spawnHotParticles(level, pos, state, random);
         }
-
         if (state.getValue(FROSTED) && random.nextFloat() < 0.35F)
         {
             spawnColdMist(level, pos, random);
         }
     }
 
-    private static void spawnHotParticles(
-            Level level,
-            BlockPos pos,
-            BlockState state,
-            RandomSource random
-    )
+    private static void spawnHotParticles(Level level, BlockPos pos, BlockState state, RandomSource random)
     {
         Direction facing = state.getValue(FACING);
         double x = pos.getX() + 0.5;
@@ -279,11 +169,7 @@ public class HearthBottomBlock extends Block implements EntityBlock
         level.addParticle(ParticleTypes.FLAME, x, y, z, 0, 0, 0);
     }
 
-    private static void spawnColdMist(
-            Level level,
-            BlockPos pos,
-            RandomSource random
-    )
+    private static void spawnColdMist(Level level, BlockPos pos, RandomSource random)
     {
         double x = pos.getX() + 0.5 + random.nextDouble() - 0.5;
         double y = pos.getY() + 0.08 + random.nextDouble() * 0.22;
@@ -292,22 +178,12 @@ public class HearthBottomBlock extends Block implements EntityBlock
     }
 
     @Override
-    protected boolean hasAnalogOutputSignal(BlockState state)
-    {
-        return true;
-    }
+    protected boolean hasAnalogOutputSignal(BlockState state) { return true; }
 
     @Override
-    protected int getAnalogOutputSignal(
-            BlockState state,
-            Level level,
-            BlockPos pos,
-            Direction direction
-    )
+    protected int getAnalogOutputSignal(BlockState state, Level level, BlockPos pos, Direction direction)
     {
-        return AbstractContainerMenu.getRedstoneSignalFromBlockEntity(
-                level.getBlockEntity(pos)
-        );
+        return AbstractContainerMenu.getRedstoneSignalFromBlockEntity(level.getBlockEntity(pos));
     }
 
     @Override
@@ -317,16 +193,9 @@ public class HearthBottomBlock extends Block implements EntityBlock
     }
 
     @Override
-    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(
-            Level level,
-            BlockState state,
-            BlockEntityType<T> type
-    )
+    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type)
     {
-        if (type != ModBlockEntities.HEARTH)
-        {
-            return null;
-        }
+        if (type != ModBlockEntities.HEARTH) return null;
         return (tickLevel, pos, tickState, entity) ->
         {
             if (entity instanceof HearthBlockEntity hearth)
