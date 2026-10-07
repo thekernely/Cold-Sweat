@@ -45,6 +45,15 @@ public final class EnvironmentSnapshotScanner
     public static final int VERTICAL_ABOVE = 11;
 
     private static final int SHELTER_RADIUS = 2;
+
+    /*
+     * A player does not need a complete 5x5 roof to gain meaningful weather
+     * shelter. Direct overhead cover always counts, while nearby overhead
+     * geometry can also qualify once it covers at least 20% of the local
+     * sample. Broad skyExposure remains separate and still controls how open
+     * the surrounding terrain is.
+     */
+    private static final double MIN_LOCAL_SHELTER_COVERAGE = 0.20;
     private static final int WATER_RADIUS = 5;
     private static final int WATER_MAX_Y_OFFSET = 5;
     private static final int RADIANT_MAX_Y_OFFSET = 3;
@@ -149,6 +158,8 @@ public final class EnvironmentSnapshotScanner
 
         int localSkySamples = 0;
         int localSkyVisible = 0;
+        boolean directOverheadSkySampled = false;
+        boolean directOverheadSkyVisible = false;
         int wideSkySamples = 0;
         int wideSkyVisible = 0;
 
@@ -197,6 +208,12 @@ public final class EnvironmentSnapshotScanner
                     {
                         boolean visible =
                                 level.canSeeSky(skyCursor);
+
+                        if (x == 0 && z == 0)
+                        {
+                            directOverheadSkySampled = true;
+                            directOverheadSkyVisible = visible;
+                        }
 
                         wideSkySamples++;
                         if (visible)
@@ -355,10 +372,22 @@ public final class EnvironmentSnapshotScanner
                                 / (double) waterSamples
                         : 0.0;
 
+        double localShelterCoverage =
+                localSkySamples > 0
+                        ? 1.0 - localSkyVisible
+                                / (double) localSkySamples
+                        : 0.0;
+
+        boolean directOverheadCover =
+                directOverheadSkySampled
+                        && !directOverheadSkyVisible;
+
         boolean sheltered =
                 meaningfulSky
                         && localSkySamples > 0
-                        && localSkyVisible == 0;
+                        && (directOverheadCover
+                                || localShelterCoverage
+                                        >= MIN_LOCAL_SHELTER_COVERAGE);
 
         boolean underground =
                 meaningfulSky

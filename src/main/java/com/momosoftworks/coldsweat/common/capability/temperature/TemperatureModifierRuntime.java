@@ -14,6 +14,7 @@ import com.momosoftworks.coldsweat.fabric.temperature.RoomThermalManager;
 import com.momosoftworks.coldsweat.fabric.temperature.RoomThermalState;
 import com.momosoftworks.coldsweat.fabric.temperature.ThermalEnvironment;
 import com.momosoftworks.coldsweat.fabric.temperature.ThermoregulationRuntime;
+import com.momosoftworks.coldsweat.fabric.temperature.WindExposureModel;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.world.Difficulty;
@@ -489,8 +490,25 @@ public final class TemperatureModifierRuntime
         double afterLocalSources =
                 ambientClimate + localSourceDelta;
 
+        /*
+         * M9.4a adds wind as an apparent-environment load after retained
+         * room/local-source composition and before dynamic exposure
+         * modifiers. The model reuses the cached spatial snapshot, so no
+         * second shelter scan is introduced.
+         */
+        double windApparentDelta =
+                WindExposureModel.apparentTemperatureDelta(
+                        entity,
+                        spatial,
+                        room,
+                        afterLocalSources
+                );
+
+        double afterWindExposure =
+                afterLocalSources + windApparentDelta;
+
         double modifiedEffectiveTemperature = Temperature.apply(
-                afterLocalSources,
+                afterWindExposure,
                 entity,
                 Temperature.Trait.WORLD,
                 stages.exposure
