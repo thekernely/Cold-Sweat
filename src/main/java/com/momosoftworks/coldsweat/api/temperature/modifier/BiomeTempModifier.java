@@ -58,6 +58,33 @@ public class BiomeTempModifier extends TempModifier
         this.samples = Math.max(1, samples);
     }
 
+    /**
+     * Point-local ambient climate sample for non-entity systems such as crops.
+     *
+     * <p>This deliberately reuses the exact M9 seasonal biome envelope and
+     * day/night phase owned by the normal biome modifier. It does not perform
+     * the player's broad 7x7 smoothing kernel because a crop is a fixed world
+     * position rather than a moving body crossing biome edges.
+     *
+     * <p>Elevation remains a separate modifier and is therefore not folded into
+     * this value; callers that need full outdoor air should compose
+     * {@link ElevationTempModifier#getAltitudeOffset(Level, BlockPos)}.
+     */
+    public static double sampleLocalClimateAt(
+            Level level,
+            BlockPos pos
+    )
+    {
+        double timeMultiplier =
+                WorldTemperatureUtil.getTimeMultiplier(level);
+
+        return getBiomeTemperature(
+                level,
+                level.getBiome(pos),
+                timeMultiplier
+        ) + WorldTemperatureSettings.getDimensionTempOffset(level);
+    }
+
     @Override
     protected Function<Double, Double> calculate(
             LivingEntity entity,

@@ -1,6 +1,7 @@
 package com.momosoftworks.coldsweat.api.temperature.modifier;
 
 import com.momosoftworks.coldsweat.api.util.Temperature;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 
@@ -33,27 +34,41 @@ public class ElevationTempModifier extends TempModifier
             Temperature.Trait trait
     )
     {
-        Level level = entity.level();
+        double altitudeOffset =
+                getAltitudeOffset(
+                        entity.level(),
+                        entity.blockPosition()
+                );
 
+        return temperature -> temperature + altitudeOffset;
+    }
+
+    /**
+     * Point-local elevation contribution shared by entity and ecology climate
+     * sampling. The return value is a relative Minecraft-temperature delta.
+     */
+    public static double getAltitudeOffset(
+            Level level,
+            BlockPos pos
+    )
+    {
         if (level.dimensionType().hasCeiling())
         {
-            return temperature -> temperature;
+            return 0.0;
         }
 
         int snowLevel = level.getSeaLevel() + 17;
-        int y = entity.blockPosition().getY();
+        int y = pos.getY();
 
         if (y <= snowLevel)
         {
-            return temperature -> temperature;
+            return 0.0;
         }
 
         // Minecraft's biome temperature uses a 0.05 / 40 cooling slope above
         // sea level + 17. We preserve that deterministic altitude component;
         // vanilla's private positional noise term is intentionally excluded.
-        double altitudeOffset = -(y - snowLevel) * 0.05 / 40.0;
-
-        return temperature -> temperature + altitudeOffset;
+        return -(y - snowLevel) * 0.05 / 40.0;
     }
 
     public int getSamples()
