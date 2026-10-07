@@ -11,8 +11,9 @@ import net.minecraft.world.entity.LivingEntity;
  * performs no additional world scan.
  *
  * Wetness remains separately owned by WaterTempModifier/ThermoregulationRuntime.
- * Rain and thunder only strengthen the airflow term here, so a wet player is
- * not represented by a second arbitrary "wet = colder air" penalty.
+ * Local precipitation and thunder only strengthen the airflow term here, so a
+ * wet player is not represented by a second arbitrary "wet = colder air"
+ * penalty. Weather locality comes from WeatherExposureModel.
  *
  * Hot-weather evaporative cooling, directional wind, and richer Ecliptic
  * weather coupling are intentionally deferred. This first slice establishes
@@ -112,14 +113,18 @@ public final class WindExposureModel
                                 / (WIND_CHILL_START_C - FULL_WIND_CHILL_C)
                 );
 
-        double rain =
-                clamp01(entity.level().getRainLevel(1.0F));
+        WeatherExposureModel.LocalWeather weather =
+                WeatherExposureModel.sample(
+                        entity.level(),
+                        entity.blockPosition()
+                );
 
         double weatherMultiplier =
                 1.0
-                        + rain * (FULL_RAIN_MULTIPLIER - 1.0);
+                        + weather.precipitationStrength()
+                        * (FULL_RAIN_MULTIPLIER - 1.0);
 
-        if (entity.level().isThundering())
+        if (weather.thundering())
         {
             weatherMultiplier =
                     Math.max(

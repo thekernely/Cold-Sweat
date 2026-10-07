@@ -1,6 +1,7 @@
 package com.momosoftworks.coldsweat.fabric.temperature;
 
 import com.momosoftworks.coldsweat.util.world.WorldTemperatureUtil;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 
 /**
@@ -8,8 +9,8 @@ import net.minecraft.server.level.ServerLevel;
  *
  * The room scanner owns geometry. This model owns the environmental forcing:
  * solar gain follows the existing Cold Sweat diurnal thermal phase, is reduced
- * by rain/overcast, and becomes ordinary source power consumed by the same
- * room-air reservoir as furnaces and other heaters.
+ * by locally-resolved precipitation/overcast, and becomes ordinary source
+ * power consumed by the same room-air reservoir as furnaces and other heaters.
  */
 public final class GreenhouseSolarModel
 {
@@ -58,22 +59,58 @@ public final class GreenhouseSolarModel
             return 0.0;
         }
 
-        double rain =
-                clamp(
-                        level.getRainLevel(1.0F),
-                        0.0,
-                        1.0
-                );
+        BlockPos weatherProbe =
+                roomWeatherProbe(sample);
+
+        double precipitationStrength =
+                WeatherExposureModel.sample(
+                        level,
+                        weatherProbe
+                ).precipitationStrength();
 
         double weatherTransmission =
                 1.0
-                        - rain
+                        - precipitationStrength
                         * (1.0 - FULL_RAIN_TRANSMISSION);
 
         return sample.solarGlazingFaces()
                 * FULL_SUN_POWER_PER_GLAZING_FACE
                 * solarPhase
                 * weatherTransmission;
+    }
+
+    /**
+     * Sample the weather column immediately above the retained room.
+     *
+     * The room scan already owns geometry and records the room bounds. Using
+     * their horizontal center keeps this weather lookup O(1) and avoids a
+     * second roof search. solarGlazingFaces > 0 already guarantees that at
+     * least part of the roof is genuinely sky-exposed.
+     */
+    private static BlockPos roomWeatherProbe(
+            EnvironmentSnapshotScanner.RoomSample sample
+    )
+    {
+        EnvironmentSnapshotScanner.RoomKey key =
+                sample.key();
+
+        if (key == null)
+        {
+            return BlockPos.ZERO;
+        }
+
+        int x =
+                key.minX()
+                        + (key.maxX() - key.minX()) / 2;
+        int z =
+                key.minZ()
+                        + (key.maxZ() - key.minZ()) / 2;
+
+        return new BlockPos(
+                x,
+                key.maxY() + 2,
+                z
+        );
     }
 
     private static double clamp(
