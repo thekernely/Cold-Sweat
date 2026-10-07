@@ -17,6 +17,10 @@ import java.util.WeakHashMap;
  * - slow envelope exchange for genuinely sealed rooms
  * - much faster ventilation exchange through doors/holes/openings
  *
+ * M9.3b feeds sky-exposed greenhouse glazing into this same reservoir as
+ * solar source power. It is not a flat room-temperature bonus: glazing area,
+ * room volume, leakage, time of day, and weather all affect the result.
+ *
  * Room state is also fuzzy-matched across small bounding-box changes so
  * opening a door or removing a furnace does not create a brand-new thermal
  * reservoir.
@@ -94,6 +98,16 @@ public final class RoomThermalManager
         double leakageRate =
                 calculateLeakageRate(sample);
 
+        double greenhouseSolarPower =
+                GreenhouseSolarModel.calculateHeatPower(
+                        level,
+                        sample
+                );
+
+        double totalSourcePower =
+                sample.heatPower()
+                        + greenhouseSolarPower;
+
         Map<EnvironmentSnapshotScanner.RoomKey, MutableState> levelStates =
                 STATES.computeIfAbsent(
                         level,
@@ -150,7 +164,7 @@ public final class RoomThermalManager
         if (elapsedSeconds > 0.0)
         {
             double sourceRateCPerSecond =
-                    sample.heatPower()
+                    totalSourcePower
                             / Math.max(
                                     1.0,
                                     sample.volume()
@@ -187,7 +201,7 @@ public final class RoomThermalManager
                 sample.volume(),
                 sample.boundaryFaces(),
                 sample.heatSourceBlocks(),
-                sample.heatPower(),
+                totalSourcePower,
                 leakageRate,
                 state.airTemperatureC,
                 outdoorC

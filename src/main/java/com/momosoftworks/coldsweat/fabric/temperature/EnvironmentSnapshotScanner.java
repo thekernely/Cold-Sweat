@@ -33,6 +33,9 @@ import java.util.Set;
  * M9.3a hardens the same bounded scan for shelter/greenhouse semantics:
  * porous barriers do not magically seal air, and rooms with large exterior
  * openings no longer qualify as enclosed thermal reservoirs.
+ *
+ * M9.3b also measures sky-exposed roof glazing as room geometry. The thermal
+ * manager owns the actual time/weather-dependent solar heat calculation.
  */
 public final class EnvironmentSnapshotScanner
 {
@@ -423,7 +426,7 @@ public final class EnvironmentSnapshotScanner
                         && !level.dimensionType().hasCeiling();
 
         if (meaningfulSky
-                && level.canSeeSky(actualStart))
+                && isExteriorSkyOpening(level, actualStart))
         {
             return RoomSample.open(1);
         }
@@ -443,6 +446,7 @@ public final class EnvironmentSnapshotScanner
         int volume = 0;
         int boundaryFaces = 0;
         int exteriorOpeningFaces = 0;
+        int solarGlazingFaces = 0;
         int heatSourceBlocks = 0;
         double heatPower = 0.0;
 
@@ -515,7 +519,7 @@ public final class EnvironmentSnapshotScanner
                      * connected outdoor world into the player's "room".
                      */
                     if (meaningfulSky
-                            && level.canSeeSky(neighbor))
+                            && isExteriorSkyOpening(level, neighbor))
                     {
                         exteriorOpeningFaces++;
                         continue;
@@ -532,6 +536,22 @@ public final class EnvironmentSnapshotScanner
                     }
 
                     continue;
+                }
+
+                /*
+                 * M9.3b treats only upward-facing, sky-exposed glass as a
+                 * solar aperture. The scan records geometry only; actual solar
+                 * strength remains a time/weather-dependent thermal concern.
+                 *
+                 * Stained glass is accepted, while tinted glass is not: it
+                 * deliberately blocks skylight and should not heat a room.
+                 */
+                if (direction == Direction.UP
+                        && isSolarRoofGlazing(neighborState)
+                        && meaningfulSky
+                        && level.canSeeSky(neighbor.above()))
+                {
+                    solarGlazingFaces++;
                 }
 
                 /*
@@ -563,7 +583,7 @@ public final class EnvironmentSnapshotScanner
                     ))
                     {
                         if (meaningfulSky
-                                && level.canSeeSky(beyond))
+                                && isExteriorSkyOpening(level, beyond))
                         {
                             exteriorOpeningFaces++;
                             continue;
@@ -635,6 +655,7 @@ public final class EnvironmentSnapshotScanner
                 volume,
                 boundaryFaces,
                 exteriorOpeningFaces,
+                solarGlazingFaces,
                 heatSourceBlocks,
                 heatPower,
                 new RoomKey(
@@ -844,6 +865,60 @@ public final class EnvironmentSnapshotScanner
                 .isEmpty();
     }
 
+    /*
+     * canSeeSky() describes skylight visibility, not physical airflow.
+     * Transparent glazing can therefore report sky visibility from inside
+     * a completely sealed greenhouse.
+     *
+     * Room enclosure needs the physical interpretation: an air cell is an
+     * exterior opening only when the vertical path above it remains passable
+     * room air all the way out of the world. Glass transmits skylight but
+     * terminates this airflow path.
+     */
+    private static boolean isExteriorSkyOpening(
+            ServerLevel level,
+            BlockPos pos
+    )
+    {
+        if (!level.canSeeSky(pos))
+        {
+            return false;
+        }
+
+        BlockPos.MutableBlockPos cursor =
+                new BlockPos.MutableBlockPos();
+
+        cursor.set(
+                pos.getX(),
+                pos.getY() + 1,
+                pos.getZ()
+        );
+
+        while (level.isInWorldBounds(cursor))
+        {
+            BlockState state =
+                    level.getBlockState(cursor);
+
+            if (!isRoomAir(level, cursor, state))
+            {
+                return false;
+            }
+
+            cursor.setY(cursor.getY() + 1);
+        }
+
+        return true;
+    }
+
+    private static boolean isSolarRoofGlazing(
+            BlockState state
+    )
+    {
+        return state.is(Blocks.GLASS)
+                || state.getBlock()
+                        instanceof net.minecraft.world.level.block.StainedGlassBlock;
+    }
+
     private static boolean isThermallyPorousBoundary(
             BlockState state
     )
@@ -1004,6 +1079,7 @@ public final class EnvironmentSnapshotScanner
             int volume,
             int boundaryFaces,
             int exteriorOpeningFaces,
+            int solarGlazingFaces,
             int heatSourceBlocks,
             double heatPower,
             RoomKey key
@@ -1014,6 +1090,7 @@ public final class EnvironmentSnapshotScanner
                         false,
                         false,
                         false,
+                        0,
                         0,
                         0,
                         0,
@@ -1037,6 +1114,7 @@ public final class EnvironmentSnapshotScanner
                     0,
                     0,
                     0,
+                    0,
                     0.0,
                     null
             );
@@ -1049,6 +1127,7 @@ public final class EnvironmentSnapshotScanner
                     false,
                     true,
                     visited,
+                    0,
                     0,
                     0,
                     0,
