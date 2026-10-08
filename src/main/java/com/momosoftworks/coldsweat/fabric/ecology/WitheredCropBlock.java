@@ -1,6 +1,7 @@
 package com.momosoftworks.coldsweat.fabric.ecology;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -33,6 +34,8 @@ public final class WitheredCropBlock extends BushBlock
     @Override
     protected boolean mayPlaceOn(BlockState ground, BlockGetter level, BlockPos pos)
     {
-        return ground.is(Blocks.FARMLAND) || super.mayPlaceOn(ground, level, pos);
+        return ground.is(Blocks.FARMLAND)
+                || ground.is(BlockTags.SUPPORTS_CROPS)
+                || super.mayPlaceOn(ground, level, pos);
     }
 }
