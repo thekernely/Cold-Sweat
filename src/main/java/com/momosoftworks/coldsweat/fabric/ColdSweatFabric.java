@@ -25,6 +25,7 @@ import com.momosoftworks.coldsweat.core.init.ModSounds;
 import com.momosoftworks.coldsweat.core.init.TempModifierInit;
 import com.momosoftworks.coldsweat.fabric.hydration.FoodHydrationRegistry;
 import com.momosoftworks.coldsweat.fabric.hydration.HydrationGameplayRuntime;
+import com.momosoftworks.coldsweat.fabric.ecology.CropRoomClimateService;
 import com.momosoftworks.coldsweat.fabric.season.SeasonContextService;
 import com.momosoftworks.coldsweat.util.registries.ModGameRules;
 import net.fabricmc.api.ModInitializer;
@@ -74,5 +75,6 @@ public final class ColdSweatFabric implements ModInitializer
         TemperatureDamageRuntime.initialize();
         ModGameRules.initialize();
         SeasonContextService.initialize();
+        CropRoomClimateService.initialize();
     }
 }

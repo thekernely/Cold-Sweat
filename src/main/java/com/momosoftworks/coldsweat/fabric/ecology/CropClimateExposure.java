@@ -4,7 +4,7 @@ import com.momosoftworks.coldsweat.api.temperature.modifier.BiomeTempModifier;
 import com.momosoftworks.coldsweat.api.temperature.modifier.ElevationTempModifier;
 import com.momosoftworks.coldsweat.api.util.Temperature;
 import com.momosoftworks.coldsweat.data.tag.ModBlockTags;
-import com.momosoftworks.coldsweat.fabric.temperature.RoomThermalManager;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.state.BlockState;
@@ -60,14 +60,15 @@ public final class CropClimateExposure
                 );
 
         /*
-         * M9 retained rooms remain the authoritative source of enclosed-air
-         * temperature. M10.2b will add crop-side room keepalive/refresh so
-         * greenhouse air does not depend on a nearby player scan.
+         * Crop-side room observations wake the shared M9 room reservoir
+         * without a player present. Open crops fall back to outdoor air; no
+         * room flood fill is performed for each random tick.
          */
         double cachedRoomC =
-                RoomThermalManager.getCachedRoomTemperatureC(
+                CropRoomClimateService.sampleAirC(
                         level,
-                        cropPos
+                        cropPos,
+                        outdoorMc
                 );
 
         boolean retainedRoom =
@@ -84,6 +85,7 @@ public final class CropClimateExposure
 
         boolean directSkyExposure =
                 meaningfulSky
+                        && !CropRoomClimateService.hasPhysicalOverhead(level, cropPos)
                         && level.canSeeSky(cropPos.above());
 
         /*

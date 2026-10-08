@@ -283,6 +283,35 @@ public final class RoomThermalManager
                 : best.airTemperatureC;
     }
 
+    /**
+     * A suspended crop room does not accumulate simulation time while its
+     * anchor or any part of the room is not block-ticking. Preserve the
+     * recorded temperature and resume from the next active tick.
+     */
+    public static void pauseRoom(
+            ServerLevel level,
+            EnvironmentSnapshotScanner.RoomKey key
+    )
+    {
+        Map<EnvironmentSnapshotScanner.RoomKey, MutableState> rooms = STATES.get(level);
+        if (rooms == null || key == null) return;
+        MutableState state = rooms.get(key);
+        if (state != null) state.lastUpdateTick = level.getGameTime();
+    }
+
+    /**
+     * Revoke retained heat immediately when a refreshed crop room is no
+     * longer enclosed. Do not let its old bounding-box cache shelter crops.
+     */
+    public static void forgetRoom(
+            ServerLevel level,
+            EnvironmentSnapshotScanner.RoomKey key
+    )
+    {
+        Map<EnvironmentSnapshotScanner.RoomKey, MutableState> rooms = STATES.get(level);
+        if (rooms != null && key != null) rooms.remove(key);
+    }
+
     private static MutableState resolveState(
             Map<EnvironmentSnapshotScanner.RoomKey, MutableState> states,
             EnvironmentSnapshotScanner.RoomKey key,

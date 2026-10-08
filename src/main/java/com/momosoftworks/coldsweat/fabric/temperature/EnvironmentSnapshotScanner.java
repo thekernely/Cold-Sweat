@@ -136,6 +136,19 @@ public final class EnvironmentSnapshotScanner
         );
     }
 
+    /**
+     * Room-only geometry scan for crop climate. Unlike scanAt(), this skips
+     * the 25x25x15 player-environment grid entirely. It is called at most at
+     * the bounded room-discovery/refresh cadence, not once per crop tick.
+     */
+    public static RoomSample scanRoomOnlyAt(
+            ServerLevel level,
+            BlockPos cropPos
+    )
+    {
+        return scanRoom(level, cropPos, null);
+    }
+
     private static ScanResult scanAt(
             ServerLevel level,
             BlockPos origin,
