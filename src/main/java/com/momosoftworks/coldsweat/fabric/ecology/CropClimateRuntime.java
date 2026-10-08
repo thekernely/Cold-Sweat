@@ -3,6 +3,9 @@ package com.momosoftworks.coldsweat.fabric.ecology;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.minecraft.core.BlockPos;
+import com.momosoftworks.coldsweat.core.init.ModBlocks;
+import net.minecraft.world.level.block.CropBlock;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.block.state.properties.IntegerProperty;
@@ -103,8 +106,10 @@ public final class CropClimateRuntime
             {
                 Block block = BuiltInRegistries.BLOCK.getValue(Identifier.parse(row.blockId()));
                 if (block == null) continue;
-                restored.put(row.position(), new StressState(
-                        block, row.stress(), level.getGameTime(), -1L, row.age()));
+                StressState restoredState = new StressState(
+                        block, row.stress(), level.getGameTime(), -1L, row.age());
+                restoredState.criticalTicks = row.criticalTicks();
+                restored.put(row.position(), restoredState);
             }
             catch (IllegalArgumentException ignored)
             {
@@ -169,6 +174,13 @@ public final class CropClimateRuntime
                         state,
                         exposure
                 );
+
+        // M10.3b-a: only a sustained, fully critical frost condition
+        // kills a short farmland crop. No drops and no stale randomTick.
+        if (maybeWither(level, pos, state, exposure, stress))
+        {
+            return false;
+        }
 
         emitFrostFeedback(
                 level,
@@ -314,7 +326,7 @@ public final class CropClimateRuntime
         {
             state.lastActiveTick = activeNow;
             if (state.stress > 0.0)
-                CropFrostSavedData.get(level).update(packed, state.block, state.stress, age);
+                CropFrostSavedData.get(level).update(packed, state.block, state.stress, age, state.criticalTicks);
             return state.stress;
         }
 
@@ -324,7 +336,7 @@ public final class CropClimateRuntime
         if (elapsed <= 0L)
         {
             if (state.stress > 0.0)
-                CropFrostSavedData.get(level).update(packed, state.block, state.stress, age);
+                CropFrostSavedData.get(level).update(packed, state.block, state.stress, age, state.criticalTicks);
             return state.stress;
         }
 
@@ -337,10 +349,66 @@ public final class CropClimateRuntime
             case SEVERE_FROST -> SEVERE_FROST_STRESS_PER_TICK * elapsed
                     * (exposure.directFrostExposure() ? 1.0 : COVERED_SEVERE_MULTIPLIER);
         };
+        boolean alreadyCritical = state.stress >= 0.99999;
         state.stress = clamp01(state.stress + delta);
-        CropFrostSavedData.get(level).update(packed, state.block, state.stress, age);
+
+        boolean frozen = exposure.thermalBand() == CropClimateExposure.ThermalBand.FROST
+                || exposure.thermalBand() == CropClimateExposure.ThermalBand.SEVERE_FROST;
+        if (frozen && alreadyCritical && state.stress >= 0.99999)
+        {
+            // Grace starts only AFTER reaching full frost stress. Warmth
+            // resets it, and unloaded chunks add zero active clock ticks.
+            state.criticalTicks = (int) Math.min(48_000L,
+                    (long) state.criticalTicks + elapsed);
+        }
+        else if (!frozen || state.stress < 0.99999)
+        {
+            state.criticalTicks = 0;
+        }
+
+        CropFrostSavedData.get(level).update(packed, state.block, state.stress, age, state.criticalTicks);
         return state.stress;
     }
+    /**
+     * M10.3b-a only replaces ordinary one-block CropBlock-family plants
+     * rooted on farmland. Tall, vine, rice and other multi-position plants
+     * are deliberately deferred until their whole structure can be handled.
+     */
+    private static boolean maybeWither(
+            ServerLevel level,
+            BlockPos pos,
+            BlockState crop,
+            CropClimateExposure.Sample exposure,
+            double stress)
+    {
+        if (stress < 0.99999
+                || !(crop.getBlock() instanceof CropBlock)
+                || !level.getBlockState(pos.below()).is(Blocks.FARMLAND))
+        {
+            return false;
+        }
+
+        Map<Long, StressState> tracked = STRESS.get(level);
+        StressState state = tracked == null ? null : tracked.get(pos.asLong());
+        if (state == null || state.block != crop.getBlock()) return false;
+
+        int required = exposure.thermalBand() == CropClimateExposure.ThermalBand.SEVERE_FROST
+                ? 1_200
+                : exposure.thermalBand() == CropClimateExposure.ThermalBand.FROST
+                        ? 2_400
+                        : Integer.MAX_VALUE;
+        if (state.criticalTicks < required) return false;
+
+        // Replace in-place. Never invoke destroyBlock(drop=true), so
+        // neither the original crop nor the dead replacement refunds seeds.
+        if (level.setBlock(pos, ModBlocks.WITHERED_CROP.defaultBlockState(), 3))
+        {
+            clearStress(level, pos);
+            return true;
+        }
+        return false;
+    }
+
     /**
      * Server-driven visual feedback avoids model/texture surgery on every
      * vanilla or third-party crop. Particle emission only happens on the
@@ -422,6 +490,7 @@ public final class CropClimateRuntime
         private long lastSeenTick;
         private long lastActiveTick;
         private int age;
+        private int criticalTicks;
 
         private StressState(Block block, double stress, long lastSeenTick,
                             long lastActiveTick, int age)

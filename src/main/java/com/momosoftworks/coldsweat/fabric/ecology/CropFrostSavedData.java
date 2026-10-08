@@ -28,14 +28,15 @@ public final class CropFrostSavedData extends SavedData
     public static final int MAX_ENTRIES = 16_384;
     private static final float MIN_SAVED_STRESS = 0.0001F;
 
-    public record Entry(long position, String blockId, float stress, int age)
+    public record Entry(long position, String blockId, float stress, int age, int criticalTicks)
     {
         public static final Codec<Entry> CODEC = RecordCodecBuilder.create(instance ->
                 instance.group(
                         Codec.LONG.fieldOf("pos").forGetter(Entry::position),
                         Codec.STRING.fieldOf("block").forGetter(Entry::blockId),
                         Codec.FLOAT.fieldOf("stress").forGetter(Entry::stress),
-                        Codec.INT.optionalFieldOf("age", -1).forGetter(Entry::age)
+                        Codec.INT.optionalFieldOf("age", -1).forGetter(Entry::age),
+                        Codec.INT.optionalFieldOf("critical", 0).forGetter(Entry::criticalTicks)
                 ).apply(instance, Entry::new));
     }
 
@@ -75,7 +76,8 @@ public final class CropFrostSavedData extends SavedData
 
             crops.put(row.position(), new Entry(
                     row.position(), row.blockId(),
-                    Math.min(1.0F, row.stress()), row.age()));
+                    Math.min(1.0F, row.stress()), row.age(),
+                    Math.max(0, Math.min(48_000, row.criticalTicks()))));
         }
     }
 
@@ -92,7 +94,7 @@ public final class CropFrostSavedData extends SavedData
                 .toList();
     }
 
-    public void update(long packed, Block block, double stress, int age)
+    public void update(long packed, Block block, double stress, int age, int criticalTicks)
     {
         if (!Double.isFinite(stress) || stress < MIN_SAVED_STRESS)
         {
@@ -107,6 +109,7 @@ public final class CropFrostSavedData extends SavedData
         if (old != null
                 && old.blockId().equals(blockId)
                 && old.age() == age
+                && old.criticalTicks() == criticalTicks
                 && Math.abs(old.stress() - stored) < 0.00001F)
         {
             return;
@@ -118,7 +121,8 @@ public final class CropFrostSavedData extends SavedData
             return;
         }
 
-        crops.put(packed, new Entry(packed, blockId, stored, age));
+        crops.put(packed, new Entry(packed, blockId, stored, age,
+                Math.max(0, Math.min(48_000, criticalTicks))));
         setDirty();
     }
 

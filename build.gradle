@@ -170,6 +170,11 @@ sourceSets {
             include 'data/minecraft/tags/damage_type/no_impact.json'
             include 'data/minecraft/tags/damage_type/bypasses_cooldown.json'
 
+            // M10.3b-a: dead single-block frost crop. It drops nothing.
+            include 'assets/cold_sweat/blockstates/withered_crop.json'
+            include 'assets/cold_sweat/models/block/withered_crop.json'
+            include 'assets/cold_sweat/textures/block/withered_crop.png'
+
             // M6.7: thermal-machine blockstates, models, and textures.
             include 'assets/cold_sweat/blockstates/hearth_bottom.json'
             include 'assets/cold_sweat/blockstates/hearth_top.json'

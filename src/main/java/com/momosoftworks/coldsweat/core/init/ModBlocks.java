@@ -7,6 +7,7 @@ import com.momosoftworks.coldsweat.common.block.IceboxBlock;
 import com.momosoftworks.coldsweat.common.block.SmokestackBlock;
 import com.momosoftworks.coldsweat.common.block.SlushLiquidBlock;
 import com.momosoftworks.coldsweat.fabric.ColdSweatFabric;
+import com.momosoftworks.coldsweat.fabric.ecology.WitheredCropBlock;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -83,6 +84,18 @@ public final class ModBlocks
                     .noOcclusion()
     );
 
+
+    /** Frost-killed crop: deliberately no item and no loot table. */
+    public static final WitheredCropBlock WITHERED_CROP = register(
+            "withered_crop",
+            WitheredCropBlock::new,
+            BlockBehaviour.Properties.of()
+                    .instabreak()
+                    .noCollision()
+                    .noOcclusion()
+                    .noLootTable()
+                    .sound(SoundType.GRASS)
+    );
 
     public static final SlushLiquidBlock SLUSH = register(
             "slush",
