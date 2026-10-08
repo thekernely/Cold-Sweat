@@ -8,6 +8,8 @@ import com.momosoftworks.coldsweat.common.container.IceboxMenu;
 import com.momosoftworks.coldsweat.core.init.ModBlockEntities;
 import com.momosoftworks.coldsweat.core.init.ModFluids;
 import com.momosoftworks.coldsweat.core.init.ModMenus;
+import com.momosoftworks.coldsweat.fabric.client.CropFrostClientState;
+import com.momosoftworks.coldsweat.fabric.client.CropFrostOverlayRenderer;
 import com.momosoftworks.coldsweat.fabric.client.DehydrationSymptomRenderer;
 import com.momosoftworks.coldsweat.fabric.client.HeatExposureParticleRuntime;
 import com.momosoftworks.coldsweat.fabric.client.HydrationHudRenderer;
@@ -66,6 +68,8 @@ public final class ColdSweatFabricClient implements ClientModInitializer
         MenuScreens.register(ModMenus.BOILER, BoilerScreen::new);
         MenuScreens.register(ModMenus.ICEBOX, IceboxScreen::new);
 
+        CropFrostClientState.initialize();
+        CropFrostOverlayRenderer.initialize();
         HeatExposureParticleRuntime.register();
         ThermalSymptomRenderer.register();
         DehydrationSymptomRenderer.register();

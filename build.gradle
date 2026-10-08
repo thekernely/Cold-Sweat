@@ -155,6 +155,7 @@ sourceSets {
             include 'assets/cold_sweat/sounds.json'
             include 'assets/cold_sweat/sounds/**'
             include 'assets/cold_sweat/particles/**'
+            include 'assets/cold_sweat/textures/misc/crop_frost_overlay.png'
             include 'assets/cold_sweat/textures/particle/**'
             include 'assets/cold_sweat/textures/mob_effect/**'
             include 'assets/cold_sweat/lang/**'
