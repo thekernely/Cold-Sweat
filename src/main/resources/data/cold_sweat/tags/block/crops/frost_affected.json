@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    "#minecraft:crops",
+    {
+      "id": "farmersdelight:rice",
+      "required": false
+    }
+  ]
+}

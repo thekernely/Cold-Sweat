@@ -89,6 +89,7 @@ sourceSets {
             include 'com/momosoftworks/coldsweat/common/capability/temperature/TemperatureEffectRuntime.java'
             include 'com/momosoftworks/coldsweat/mixin/LivingEntityMixin.java'
             include 'com/momosoftworks/coldsweat/mixin/FoodDataMixin.java'
+            include 'com/momosoftworks/coldsweat/mixin/CropGrowthMixin.java'
             include 'com/momosoftworks/coldsweat/mixin/TransmuteRecipeDisplayMixin.java'
             include 'com/momosoftworks/coldsweat/mixin/client/FrozenHeartHudMixin.java'
             include 'com/momosoftworks/coldsweat/util/world/WorldTemperatureUtil.java'
@@ -240,6 +241,9 @@ sourceSets {
 
             // M8.7: explicit data-driven food hydration values.
             include 'data/cold_sweat/food_hydration/**'
+
+            // M10.2a: explicitly package the opt-in frost crop tag.
+            include 'data/cold_sweat/tags/block/crops/frost_affected.json'
         }
     }
 }

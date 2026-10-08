@@ -5,7 +5,8 @@
   "mixins": [
     "LivingEntityMixin",
     "FoodDataMixin",
-    "TransmuteRecipeDisplayMixin"
+    "TransmuteRecipeDisplayMixin",
+    "CropGrowthMixin"
   ],
   "client": [
     "client.FrozenHeartHudMixin"

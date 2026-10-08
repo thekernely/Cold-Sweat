@@ -18,6 +18,15 @@ public final class ModBlockTags
     public static final TagKey<Block> CONNECTS_SMOKESTACK = createTag("connects_smokestack");
     public static final TagKey<Block> THERMAL_SOURCE = createTag("thermal_source");
 
+    /**
+     * Generic M10 crop-compatibility boundary.
+     *
+     * Datapacks/mod integrations can add cultivated crops here without adding
+     * a Java dependency on Cold Sweat's side.
+     */
+    public static final TagKey<Block> FROST_AFFECTED_CROPS =
+            createTag("crops/frost_affected");
+
     public static final TagKey<Block> SOUL_FIRE = createCommonTag("soul_fire");
 
     private static TagKey<Block> createTag(String name)
