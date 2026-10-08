@@ -63,10 +63,11 @@ public final class CropClimateRuntime
     private static final double MARGINAL_RECOVERY_PER_TICK = 1.0 / 24_000.0;
 
     /*
-     * Do not backfill huge unloaded gaps into one update. The crop must be
-     * actively ticking in loaded simulation to accumulate meaningful stress.
+     * CropActiveTickClock counts ONLY block-ticking chunk time. Unlike global
+     * gameTime, its delta already excludes unloaded/paused intervals. Do not
+     * truncate legitimate active time between intermittent random-tick
+     * observations: that undercounts frost for sparse crops like flooded rice.
      */
-    private static final long MAX_ELAPSED_TICKS_PER_SAMPLE = 2_400L;
 
     private static final int MAX_RETAINED_ENTRIES_PER_LEVEL = 16_384;
 
@@ -119,7 +120,7 @@ public final class CropClimateRuntime
         return restored;
     }
 
-    private static void clearStress(ServerLevel level, BlockPos pos)
+    static void clearStress(ServerLevel level, BlockPos pos)
     {
         Map<Long, StressState> existing = STRESS.get(level);
         if (existing != null) existing.remove(pos.asLong());
@@ -175,8 +176,8 @@ public final class CropClimateRuntime
                         exposure
                 );
 
-        // M10.3b-a: only a sustained, fully critical frost condition
-        // kills a short farmland crop. No drops and no stale randomTick.
+        // Frost death is driven by the plant root, with coherent structural
+        // cleanup for pitcher crops and Farmer's Delight tomatoes.
         if (maybeWither(level, pos, state, exposure, stress))
         {
             return false;
@@ -305,15 +306,30 @@ public final class CropClimateRuntime
 
         // Harvest/replant, including the same crop type at a younger age,
         // cannot inherit an old plant's frost stress.
+        // Budding tomatoes mature into a different registered block without
+        // changing the underlying plant. Do not erase its earned frost damage.
+        boolean maturingTomato = state != null
+                && CropFrostStructuralDeath.isBuddingToMatureTomato(
+                        state.block, blockState.getBlock());
         if (state == null
-                || state.block != blockState.getBlock()
-                || (age >= 0 && state.age >= 0 && age < state.age))
+                || (state.block != blockState.getBlock() && !maturingTomato)
+                || (age >= 0 && state.age >= 0 && age < state.age && !maturingTomato))
         {
             if (state != null) CropFrostSavedData.get(level).remove(packed);
             state = new StressState(blockState.getBlock(), 0.0, now, activeNow, age);
             levelStress.put(packed, state);
             pruneIfNeeded(level, levelStress, now);
             return state.stress;
+        }
+        if (maturingTomato)
+        {
+            StressState matured = new StressState(
+                    blockState.getBlock(), state.stress, now, activeNow, age);
+            matured.criticalTicks = state.criticalTicks;
+            levelStress.put(packed, matured);
+            CropFrostSavedData.get(level).update(
+                    packed, matured.block, matured.stress, age, matured.criticalTicks);
+            return matured.stress;
         }
 
         state.lastSeenTick = now;
@@ -330,8 +346,9 @@ public final class CropClimateRuntime
             return state.stress;
         }
 
-        long elapsed = Math.max(0L,
-                Math.min(MAX_ELAPSED_TICKS_PER_SAMPLE, activeNow - state.lastActiveTick));
+        // Elapsed time comes from the active-only chunk clock. No offline,
+        // unloaded, or non-block-ticking duration is included here.
+        long elapsed = Math.max(0L, activeNow - state.lastActiveTick);
         state.lastActiveTick = activeNow;
         if (elapsed <= 0L)
         {
@@ -370,9 +387,9 @@ public final class CropClimateRuntime
         return state.stress;
     }
     /**
-     * M10.3b-a only replaces ordinary one-block CropBlock-family plants
-     * rooted on farmland. Tall, vine, rice and other multi-position plants
-     * are deliberately deferred until their whole structure can be handled.
+     * M10.3b-b: death is owned by the cultivated plant root. The structural
+     * helper removes pitcher tops and tomato rope vines before withering the
+     * root. Every action stays in the currently ticking loaded chunk.
      */
     private static boolean maybeWither(
             ServerLevel level,
@@ -382,8 +399,7 @@ public final class CropClimateRuntime
             double stress)
     {
         if (stress < 0.99999
-                || !(crop.getBlock() instanceof CropBlock)
-                || !level.getBlockState(pos.below()).is(Blocks.FARMLAND))
+                || !CropFrostStructuralDeath.isEligibleRoot(level, pos, crop))
         {
             return false;
         }
@@ -399,9 +415,7 @@ public final class CropClimateRuntime
                         : Integer.MAX_VALUE;
         if (state.criticalTicks < required) return false;
 
-        // Replace in-place. Never invoke destroyBlock(drop=true), so
-        // neither the original crop nor the dead replacement refunds seeds.
-        if (level.setBlock(pos, ModBlocks.WITHERED_CROP.defaultBlockState(), 3))
+        if (CropFrostStructuralDeath.wither(level, pos, crop))
         {
             clearStress(level, pos);
             return true;

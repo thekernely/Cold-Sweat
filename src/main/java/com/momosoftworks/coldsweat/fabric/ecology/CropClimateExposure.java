@@ -7,6 +7,7 @@ import com.momosoftworks.coldsweat.data.tag.ModBlockTags;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
@@ -64,10 +65,31 @@ public final class CropClimateExposure
          * without a player present. Open crops fall back to outdoor air; no
          * room flood fill is performed for each random tick.
          */
+        /*
+         * Water-rooted crops (notably Farmer's Delight rice) are planted
+         * in a water source, whereas our retained room volume is connected
+         * passable air. Their root block can sit one Y below the greenhouse
+         * RoomKey even though the leaves share its warm air. Probe the air
+         * just above the water, but keep outdoor climate and stress at the
+         * real root position. Never step through a solid/water ceiling.
+         */
+        BlockPos roomAirProbe = cropPos;
+        if (level.getFluidState(cropPos).is(FluidTags.WATER))
+        {
+            BlockPos above = cropPos.above();
+            if (level.isInWorldBounds(above)
+                    && level.hasChunkAt(above)
+                    && level.getFluidState(above).isEmpty()
+                    && level.getBlockState(above).getCollisionShape(level, above).isEmpty())
+            {
+                roomAirProbe = above;
+            }
+        }
+
         double cachedRoomC =
                 CropRoomClimateService.sampleAirC(
                         level,
-                        cropPos,
+                        roomAirProbe,
                         outdoorMc
                 );
 

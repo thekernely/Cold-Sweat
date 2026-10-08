@@ -119,6 +119,7 @@ public final class RoomThermalManager
 
         MutableState state =
                 resolveState(
+                        level,
                         levelStates,
                         sample.key(),
                         outdoorC,
@@ -132,30 +133,13 @@ public final class RoomThermalManager
                 );
 
         /*
-         * If nobody observed this room for a while, bleed retained heat toward
-         * ambient for the unseen interval. We cannot know that historical heat
-         * sources stayed active, so the conservative unseen assumption remains
-         * zero source input. The current room's present leakage state is used,
-         * which means returning to a room with a door left open correctly finds
-         * a much cooler reservoir.
+         * An unobserved interval is not evidence that the room stayed loaded,
+         * block-ticking, or unheated. Do not invent prolonged passive cooling
+         * when its chunks may have been unloaded after disconnect. Resume the
+         * thermal model with a bounded current observation instead.
          */
         if (elapsedTicks > NORMAL_SCAN_GAP_TICKS)
         {
-            double passiveSeconds =
-                    Math.max(
-                            0.0,
-                            (elapsedTicks - 16L) / 20.0
-                    );
-
-            state.airTemperatureC =
-                    evolve(
-                            state.airTemperatureC,
-                            outdoorC,
-                            0.0,
-                            leakageRate,
-                            passiveSeconds
-                    );
-
             elapsedTicks = 16L;
         }
 
@@ -202,6 +186,9 @@ public final class RoomThermalManager
                 );
         state.lastUpdateTick = now;
         state.lastTouchedTick = now;
+
+        // World-saved reservoir; no wall-clock or global game-time catch-up.
+        RoomThermalSavedData.get(level).put(sample.key(), state.airTemperatureC);
 
         if (levelStates.size() > 256)
         {
@@ -310,9 +297,12 @@ public final class RoomThermalManager
     {
         Map<EnvironmentSnapshotScanner.RoomKey, MutableState> rooms = STATES.get(level);
         if (rooms != null && key != null) rooms.remove(key);
+        // A genuinely opened/destroyed room must not resurrect stale heat.
+        if (key != null) RoomThermalSavedData.get(level).remove(key);
     }
 
     private static MutableState resolveState(
+            ServerLevel level,
             Map<EnvironmentSnapshotScanner.RoomKey, MutableState> states,
             EnvironmentSnapshotScanner.RoomKey key,
             double outdoorC,
@@ -361,8 +351,32 @@ public final class RoomThermalManager
              * thermal state itself is intentionally untouched.
              */
             states.remove(bestKey);
+            // The current geometry owns the persisted entry after re-keying.
+            RoomThermalSavedData.get(level).remove(bestKey);
             states.put(key, bestState);
             return bestState;
+        }
+
+        // Restore only after a CURRENT enclosed-room sample has qualified.
+        // Stored times are intentionally not replayed across server restarts.
+        RoomThermalSavedData saved = RoomThermalSavedData.get(level);
+        RoomThermalSavedData.Entry recovered = null;
+        double recoveryScore = 0.0;
+        for (RoomThermalSavedData.Entry candidate : saved.snapshot())
+        {
+            double score = overlapScore(key, candidate.key());
+            if (score >= MIN_FUZZY_OVERLAP && score > recoveryScore)
+            {
+                recovered = candidate;
+                recoveryScore = score;
+            }
+        }
+        if (recovered != null)
+        {
+            if (!recovered.key().equals(key)) saved.remove(recovered.key());
+            MutableState restored = new MutableState(recovered.airTemperatureC(), now);
+            states.put(key, restored);
+            return restored;
         }
 
         MutableState created =
