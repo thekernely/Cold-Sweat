@@ -57,7 +57,7 @@ public final class CropFrostStructuralDeath
         // remains excluded from Cold Sweat's frost tag/death semantics.
         if (isCultivatedRice(crop))
         {
-            return level.getFluidState(pos).isSource();
+            return false; // Beta safety guard: disable rice frost death.
         }
         if (crop.is(Blocks.PITCHER_CROP)
                 && crop.hasProperty(DoublePlantBlock.HALF)
